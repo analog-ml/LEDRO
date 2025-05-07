@@ -18,7 +18,7 @@ This repository also includes all files generated for the Section II-D: Case Stu
 The netlist templates include all the netlist benchmarks in each technology node mentioned in the paper (Fig. 7, Fig. 8). 
 
 We would like to thank:
-1) [AutoCkt](https://github.com/ksettaluri6/AutoCkt/) for help with simulator interfacing code, and RL baseline code.
+1) [AutoCkt](https://github.com/ksettaluri6/AutoCkt/) for the RL baseline code, and simulator interfacing script.
 2) [GANA_circuit_data](https://github.com/kkunal1408/GANA_circuit_data) for baseline netlists we could modify for our task.
 3) [TuRBO](https://github.com/uber-research/TuRBO/tree/master) for our baseline optimizer code.
 
