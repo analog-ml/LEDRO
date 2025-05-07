@@ -5,19 +5,19 @@ Traditional approaches for designing analog circuits are time-consuming and requ
 
 The top level directory contains two sub-directories:
 
-optimizer/: contains all of the optimizer code, netlist, simulator interface, and result extraction code\\
+optimizer/: contains all of the optimizer code, netlist, simulator interface, and result extraction code\
 LLM/: contains all the LLM code with template prompts
 
 To run the code, please run the main.sh script from the optimizer folder.
 
-Note that the results shown in the paper include those from:\\
-1) Cadence Spectre simulator. Spectre requires a license.\\
+Note that the results shown in the paper include those from:\
+1) Cadence Spectre simulator. Spectre requires a license.\
 2) LLaMa-3-70B using IBM BAM, but can be modified to work with other hosted LLMs.
 
-This repository also includes all files generated for the Section II-D: Case Study: End-to-end example of 7nm differential folded cascode amplifier, and Fig. 5 in the paper.\\
+This repository also includes all files generated for the Section II-D: Case Study: End-to-end example of 7nm differential folded cascode amplifier, and Fig. 5 in the paper.\
 The netlist templates include all the netlist benchmarks in each technology node mentioned in the paper (Fig. 7, Fig. 8). 
 
-We would like to thank:\\
+We would like to thank:\
 1) [AutoCkt](https://github.com/ksettaluri6/AutoCkt/) for help with simulator interfacing code, and RL baseline code.
 2) [GANA_circuit_data](https://github.com/kkunal1408/GANA_circuit_data) for baseline netlists we could modify for our task.
 3) [TuRBO](https://github.com/uber-research/TuRBO/tree/master) for our baseline optimizer code.
