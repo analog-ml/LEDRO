@@ -1,0 +1,28 @@
+metrics- gain:  1.69e+03 , UGBW:  2.47e+09 , PM:  16.0 , power:  1.71e-07
+nA1: 1.02e-07, nB1: 5, nA2: 1.86e-07, nB2: 5, nA3: 9.07e-08, nB3: 3, nA4: 6.79e-08, nB4: 2, nA5: 1.67e-07, nB5: 5, nA6: 5.07e-08, nB6: 7, vbiasp1: 0.384, vbiasp2: 0.171, vbiasn0: 0.548, vbiasn1: 0.358, vbiasn2: 0.466, vcm: 0.4, vdd: 0.8, tempc: 27
+MM0 is in sub-threshold, MM1 is in sub-threshold, MM2 is in sub-threshold, MM3 is in sub-threshold, MM4 is in triode, MM5 is in sub-threshold, MM6 is in sub-threshold, MM7 is in sub-threshold, MM8 is in sub-threshold, MM9 is in sub-threshold, MM10 is in sub-threshold
+reward -1.6
+metrics- gain:  4.79e+02 , UGBW:  2.42e+09 , PM:  24.6 , power:  1.74e-07
+nA1: 1.04e-07, nB1: 5, nA2: 1.87e-07, nB2: 5, nA3: 9.21e-08, nB3: 3, nA4: 6.73e-08, nB4: 2, nA5: 1.69e-07, nB5: 5, nA6: 5.24e-08, nB6: 7, vbiasp1: 0.383, vbiasp2: 0.168, vbiasn0: 0.549, vbiasn1: 0.361, vbiasn2: 0.465, vcm: 0.4, vdd: 0.8, tempc: 27
+MM0 is in sub-threshold, MM1 is in sub-threshold, MM2 is in sub-threshold, MM3 is in sub-threshold, MM4 is in triode, MM5 is in sub-threshold, MM6 is in sub-threshold, MM7 is in sub-threshold, MM8 is in sub-threshold, MM9 is in sub-threshold, MM10 is in sub-threshold
+reward -2.72
+metrics- gain:  3.85e+02 , UGBW:  2.22e+09 , PM:  27.3 , power:  1.7e-07
+nA1: 1.01e-07, nB1: 5, nA2: 1.85e-07, nB2: 5, nA3: 9e-08, nB3: 3, nA4: 6.82e-08, nB4: 2, nA5: 1.66e-07, nB5: 5, nA6: 5.05e-08, nB6: 7, vbiasp1: 0.384, vbiasp2: 0.175, vbiasn0: 0.55, vbiasn1: 0.358, vbiasn2: 0.464, vcm: 0.4, vdd: 0.8, tempc: 27
+MM0 is in sub-threshold, MM1 is in sub-threshold, MM2 is in sub-threshold, MM3 is in sub-threshold, MM4 is in triode, MM5 is in sub-threshold, MM6 is in sub-threshold, MM7 is in sub-threshold, MM8 is in sub-threshold, MM9 is in sub-threshold, MM10 is in sub-threshold
+reward -2.81
+metrics- gain:  54.1 , UGBW:  2.41e+09 , PM:  70.5 , power:  2.79e-07
+nA1: 2.22e-07, nB1: 7, nA2: 3.08e-07, nB2: 5, nA3: 2.74e-07, nB3: 2, nA4: 6.82e-08, nB4: 4, nA5: 3.96e-07, nB5: 6, nA6: 2.08e-07, nB6: 5, vbiasp1: 0.357, vbiasp2: 0.0758, vbiasn0: 0.717, vbiasn1: 0.363, vbiasn2: 0.156, vcm: 0.4, vdd: 0.8, tempc: 27
+MM0 is in sub-threshold, MM1 is in sub-threshold, MM2 is in sub-threshold, MM3 is in sub-threshold, MM4 is in triode, MM5 is in sub-threshold, MM6 is in sub-threshold, MM7 is in cut-off, MM8 is in cut-off, MM9 is in sub-threshold, MM10 is in sub-threshold
+reward -2.9
+metrics- gain:  53.8 , UGBW:  2.19e+09 , PM:  74.0 , power:  2.74e-07
+nA1: 2.2e-07, nB1: 7, nA2: 3.06e-07, nB2: 5, nA3: 2.75e-07, nB3: 2, nA4: 6.98e-08, nB4: 4, nA5: 3.98e-07, nB5: 6, nA6: 2.08e-07, nB6: 5, vbiasp1: 0.358, vbiasp2: 0.0738, vbiasn0: 0.718, vbiasn1: 0.362, vbiasn2: 0.16, vcm: 0.4, vdd: 0.8, tempc: 27
+MM0 is in sub-threshold, MM1 is in sub-threshold, MM2 is in sub-threshold, MM3 is in sub-threshold, MM4 is in triode, MM5 is in sub-threshold, MM6 is in sub-threshold, MM7 is in cut-off, MM8 is in cut-off, MM9 is in sub-threshold, MM10 is in sub-threshold
+reward -2.9
+metrics- gain:  53.7 , UGBW:  2.28e+09 , PM:  72.1 , power:  2.74e-07
+nA1: 2.24e-07, nB1: 7, nA2: 3.09e-07, nB2: 5, nA3: 2.76e-07, nB3: 2, nA4: 6.98e-08, nB4: 4, nA5: 3.95e-07, nB5: 6, nA6: 2.09e-07, nB6: 5, vbiasp1: 0.358, vbiasp2: 0.0784, vbiasn0: 0.716, vbiasn1: 0.361, vbiasn2: 0.157, vcm: 0.4, vdd: 0.8, tempc: 27
+MM0 is in sub-threshold, MM1 is in sub-threshold, MM2 is in sub-threshold, MM3 is in sub-threshold, MM4 is in triode, MM5 is in sub-threshold, MM6 is in sub-threshold, MM7 is in cut-off, MM8 is in cut-off, MM9 is in sub-threshold, MM10 is in sub-threshold
+reward -2.9
+metrics- gain:  53.4 , UGBW:  2.07e+09 , PM:  74.6 , power:  2.63e-07
+nA1: 2.23e-07, nB1: 7, nA2: 3.08e-07, nB2: 5, nA3: 2.76e-07, nB3: 2, nA4: 7.34e-08, nB4: 4, nA5: 3.95e-07, nB5: 6, nA6: 2.05e-07, nB6: 5, vbiasp1: 0.359, vbiasp2: 0.0796, vbiasn0: 0.725, vbiasn1: 0.362, vbiasn2: 0.16, vcm: 0.4, vdd: 0.8, tempc: 27
+MM0 is in sub-threshold, MM1 is in sub-threshold, MM2 is in sub-threshold, MM3 is in sub-threshold, MM4 is in triode, MM5 is in sub-threshold, MM6 is in sub-threshold, MM7 is in cut-off, MM8 is in cut-off, MM9 is in sub-threshold, MM10 is in sub-threshold
+reward -2.9
