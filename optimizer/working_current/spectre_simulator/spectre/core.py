@@ -13,18 +13,21 @@ from spectre_simulator.util.core import IDEncoder, Design
 from spectre_simulator.spectre.parser import SpectreParser
 import IPython
 import shutil
-debug = False 
+
+debug = False
+
 
 def get_config_info():
     # TODO
     config_info = dict()
-    base_tmp_dir = os.environ.get('BASE_TMP_DIR', None)
+    base_tmp_dir = os.environ.get("BASE_TMP_DIR", None)
     if not base_tmp_dir:
-        raise EnvironmentError('BASE_TMP_DIR is not set in environment variables')
+        raise EnvironmentError("BASE_TMP_DIR is not set in environment variables")
     else:
-        config_info['BASE_TMP_DIR'] = base_tmp_dir
+        config_info["BASE_TMP_DIR"] = base_tmp_dir
 
     return config_info
+
 
 class SpectreWrapper(object):
 
@@ -40,22 +43,24 @@ class SpectreWrapper(object):
         # config_info also contains BASE_TMP_DIR (location for storing simulation netlist/results)
         # implement get_config_info() later
 
-        netlist_loc = tb_dict['netlist_template']
-        #print(netlist_loc)
+        netlist_loc = tb_dict["netlist_template"]
+        # print(netlist_loc)
         if not os.path.isabs(netlist_loc):
             netlist_loc = os.path.abspath(netlist_loc)
-        pp_module = importlib.import_module(tb_dict['tb_module'])
-        pp_class = getattr(pp_module, tb_dict['tb_class'])
-        self.post_process = getattr(pp_class, tb_dict['post_process_function'])
-        self.tb_params = tb_dict['tb_params']
+        pp_module = importlib.import_module(tb_dict["tb_module"])
+        pp_class = getattr(pp_module, tb_dict["tb_class"])
+        self.post_process = getattr(pp_class, tb_dict["post_process_function"])
+        self.tb_params = tb_dict["tb_params"]
 
         self.config_info = get_config_info()
 
-        self.root_dir = self.config_info['BASE_TMP_DIR']
-        self.num_process = self.config_info.get('NUM_PROCESS', 1)
+        self.root_dir = self.config_info["BASE_TMP_DIR"]
+        self.num_process = self.config_info.get("NUM_PROCESS", 1)
 
         _, dsn_netlist_fname = os.path.split(netlist_loc)
-        self.base_design_name = os.path.splitext(dsn_netlist_fname)[0] + str(random.randint(0,10000))
+        self.base_design_name = os.path.splitext(dsn_netlist_fname)[0] + str(
+            random.randint(0, 10000)
+        )
         self.gen_dir = os.path.join(self.root_dir, "designs_" + self.base_design_name)
 
         os.makedirs(self.gen_dir, exist_ok=True)
@@ -72,33 +77,42 @@ class SpectreWrapper(object):
         """
         fname = self.base_design_name
         for value in state.values():
-            if value<=2E-13: #cap
-                x = value*1E14
-                fname += "_" + str(round(x,2))
-            elif value<=1E-6: #lengths
-                x = value*1E7
-                fname += "_" + str(round(x,2))
+            if value <= 2e-13:  # cap
+                x = value * 1e14
+                fname += "_" + str(round(x, 2))
+            elif value <= 1e-6:  # lengths
+                x = value * 1e7
+                fname += "_" + str(round(x, 2))
             else:
-                fname += "_" + str(round(value,2))
+                fname += "_" + str(round(value, 2))
         return fname
 
     def _create_design(self, state, new_fname):
+        print("Creating design with state: ", state)
         output = self.template.render(**state)
+        print("Template/output file: \n", output)
+
         design_folder = os.path.join(self.gen_dir, new_fname)
         os.makedirs(design_folder, exist_ok=True)
-        fpath = os.path.join(design_folder, new_fname + '.scs')
-        with open(fpath, 'w') as f:
+        fpath = os.path.join(design_folder, new_fname + ".scs")
+        with open(fpath, "w") as f:
             f.write(output)
             f.close()
+
+        print("Design created at: ", fpath)
+        exit()  # For debugging purposes, remove this line in production
         return design_folder, fpath
 
     def _simulate(self, fpath):
-        command = ['spectre', '%s'%fpath, '-format', 'psfbin' ,'> /dev/null 2>&1']
-        log_file = os.path.join(os.path.dirname(fpath), 'log.txt')
-        err_file = os.path.join(os.path.dirname(fpath), 'err_log.txt')
+        command = ["spectre", "%s" % fpath, "-format", "psfbin", "> /dev/null 2>&1"]
+        log_file = os.path.join(os.path.dirname(fpath), "log.txt")
+        err_file = os.path.join(os.path.dirname(fpath), "err_log.txt")
 
-        with open(log_file, 'w') as file1, open(err_file,'w') as file2:
-          exit_code = subprocess.call(command, cwd=os.path.dirname(fpath), stdout=file1, stderr=file2)
+        with open(log_file, "w") as file1, open(err_file, "w") as file2:
+            print("executed command (subprocess.call): ", command)
+            exit_code = subprocess.call(
+                command, cwd=os.path.dirname(fpath), stdout=file1, stderr=file2
+            )
         file1.close()
         file2.close()
 
@@ -106,23 +120,22 @@ class SpectreWrapper(object):
         if debug:
             print(command)
             print(fpath)
-        if (exit_code % 256):
-            info = 1 # this means an error has occurred
+        if exit_code % 256:
+            info = 1  # this means an error has occurred
 
         return info
 
-
     def _create_design_and_simulate(self, state, dsn_name=None, verbose=False):
         if debug:
-            print('state', state)
-            print('verbose', verbose)
+            print("state", state)
+            print("verbose", verbose)
         if dsn_name == None:
             dsn_name = self._get_design_name(state)
         else:
             dsn_name = str(dsn_name)
         if verbose:
-            print('dsn_name', dsn_name)
-        #add additional width metrics to 45nm netlist
+            print("dsn_name", dsn_name)
+        # add additional width metrics to 45nm netlist
         # if "45nm" in dsn_name:
         #   wdict = {}
         #   for each_param in state:
@@ -131,31 +144,31 @@ class SpectreWrapper(object):
         #   state.update(wdict)
 
         design_folder, fpath = self._create_design(state, dsn_name)
+        print("fpath: ", fpath)
         info = self._simulate(fpath)
         results = self._parse_result(design_folder)
         if self.post_process:
             specs = self.post_process(results, self.tb_params)
-            #shutil.rmtree(design_folder)
-        #    print("design_folder", design_folder)
+            # shutil.rmtree(design_folder)
+            #    print("design_folder", design_folder)
             return state, specs, info
-        #print("design_folder", design_folder)
+        # print("design_folder", design_folder)
         specs = results
-        
+
         return state, specs, info
 
     def _parse_result(self, design_folder):
         _, folder_name = os.path.split(design_folder)
-        raw_folder = os.path.join(design_folder, '{}.raw'.format(folder_name))
+        raw_folder = os.path.join(design_folder, "{}.raw".format(folder_name))
         res = SpectreParser.parse(raw_folder)
-        
-       
+
         ##print(os.system("ls -l " + os.path.join("/proc",str(os.getpid()),"fd")))
-        #for fd in os.listdir(os.path.join("/proc", str(os.getpid()), "fd")):
+        # for fd in os.listdir(os.path.join("/proc", str(os.getpid()), "fd")):
         #    if int(fd) == 16:
         #      os.close(int(fd))
 
-        #onlyfiles = [f for f in os.listdir(raw_folder) if os.path.isfile(os.path.join(raw_folder, f))]
-        #for file in os.listdir(raw_folder):
+        # onlyfiles = [f for f in os.listdir(raw_folder) if os.path.isfile(os.path.join(raw_folder, f))]
+        # for file in os.listdir(raw_folder):
         #  os.remove(os.path.join(raw_folder, file))
         return res
 
@@ -170,26 +183,31 @@ class SpectreWrapper(object):
             results = [(state: dict(param_kwds, param_value), specs: dict(spec_kwds, spec_value), info: int)]
         """
         pool = ThreadPool(processes=self.num_process)
-        arg_list = [(state, dsn_name, verbose) for (state, dsn_name)in zip(states, design_names)]
+        arg_list = [
+            (state, dsn_name, verbose)
+            for (state, dsn_name) in zip(states, design_names)
+        ]
         specs = pool.starmap(self._create_design_and_simulate, arg_list)
         pool.close()
         return specs
+
     def return_path(self):
-        #print(self.gen_dir)
+        # print(self.gen_dir)
         return self.gen_dir
+
 
 class EvaluationEngine(object):
 
     def __init__(self, yaml_fname):
 
         self.design_specs_fname = yaml_fname
-        with open(yaml_fname, 'r') as f:
+        with open(yaml_fname, "r") as f:
             self.ver_specs = yaml.load(f, Loader=yaml.Loader)
         f.close()
 
-        self.spec_range = self.ver_specs['spec_range']
+        self.spec_range = self.ver_specs["spec_range"]
         # params are interfaced using the index instead of the actual value
-        params = self.ver_specs['params']
+        params = self.ver_specs["params"]
 
         self.params_vec = {}
         self.search_space_size = 1
@@ -199,18 +217,17 @@ class EvaluationEngine(object):
 
         # minimum and maximum of each parameter
         # params_vec contains the acutal numbers but min and max should be the indices
-        self.params_min = [0]*len(self.params_vec)
+        self.params_min = [0] * len(self.params_vec)
         self.params_max = []
         for val in self.params_vec.values():
-            self.params_max.append(len(val)-1)
+            self.params_max.append(len(val) - 1)
 
         self.id_encoder = IDEncoder(self.params_vec)
-        self.measurement_specs = self.ver_specs['measurement']
-        tbs = self.measurement_specs['testbenches']
+        self.measurement_specs = self.ver_specs["measurement"]
+        tbs = self.measurement_specs["testbenches"]
         self.netlist_module_dict = {}
         for tb_kw, tb_val in tbs.items():
             self.netlist_module_dict[tb_kw] = SpectreWrapper(tb_val)
-
 
     @property
     def num_params(self):
@@ -222,7 +239,7 @@ class EvaluationEngine(object):
         :return: a list of n Design objects with populated attributes (i.e. cost, specs, id)
         """
         valid_designs, tried_designs = [], []
-        nvalid_designs = 0 
+        nvalid_designs = 0
 
         useless_iter_count = 0
         while len(valid_designs) < n:
@@ -232,14 +249,16 @@ class EvaluationEngine(object):
                 design[key] = rand_idx
             design = Design(self.spec_range, self.id_encoder, list(design.values()))
             if design in tried_designs:
-                if (useless_iter_count > n * 5):
-                    raise ValueError("Random selection of a fraction of search space did not "
-                                     "result in {} number of valid designs".format(n))
+                if useless_iter_count > n * 5:
+                    raise ValueError(
+                        "Random selection of a fraction of search space did not "
+                        "result in {} number of valid designs".format(n)
+                    )
                 useless_iter_count += 1
                 continue
             design_result = self.evaluate([design], debug=debug)[0]
-            if design_result['valid']:
-                design.cost = design_result['cost']
+            if design_result["valid"]:
+                design.cost = design_result["cost"]
                 for key in design.specs.keys():
                     design.specs[key] = design_result[key]
                 valid_designs.append(design)
@@ -250,8 +269,6 @@ class EvaluationEngine(object):
             print("not valid designs:" + str(nvalid_designs))
         return valid_designs[:n]
 
-   
-
     def evaluate(self, design_list, debug=True, parallel_config=None):
         """
         serial implementation of evaluate (not parallel)
@@ -261,29 +278,29 @@ class EvaluationEngine(object):
         """
         results = []
         if len(design_list) > 1:
-          for design in design_list:
-              try:
-                  result = self._evaluate(design, parallel_config=parallel_config)
-                  #result['valid'] = True
-              except Exception as e:
-                  if debug:
-                      raise e
-                  result = {'valid': False}
-                  print(getattr(e, 'message', str(e)))
+            for design in design_list:
+                try:
+                    result = self._evaluate(design, parallel_config=parallel_config)
+                    # result['valid'] = True
+                except Exception as e:
+                    if debug:
+                        raise e
+                    result = {"valid": False}
+                    print(getattr(e, "message", str(e)))
 
-              results.append(result)
+                results.append(result)
         else:
-          try:
-            netlist_name, netlist_module = list(self.netlist_module_dict.items())[0]
-            result = netlist_module._create_design_and_simulate(design_list[0])
-          except Exception as e:
-            if debug:
-              raise e
-            result = {'valid': False}
-            print(getattr(e, 'message', str(e)))
-          results.append(result)
-        return_loc=netlist_module.return_path()
-        #print(return_loc)
+            try:
+                netlist_name, netlist_module = list(self.netlist_module_dict.items())[0]
+                result = netlist_module._create_design_and_simulate(design_list[0])
+            except Exception as e:
+                if debug:
+                    raise e
+                result = {"valid": False}
+                print(getattr(e, "message", str(e)))
+            results.append(result)
+        return_loc = netlist_module.return_path()
+        # print(return_loc)
         shutil.rmtree(return_loc)
         return results
 
@@ -296,15 +313,17 @@ class EvaluationEngine(object):
         print(state_dict)
         results = {}
         for netlist_name, netlist_module in self.netlist_module_dict.items():
-            results[netlist_name] = netlist_module.create_design_and_simulate(state, dsn_names)
+            results[netlist_name] = netlist_module.create_design_and_simulate(
+                state, dsn_names
+            )
 
-        specs_dict = self.get_specs(results, self.measurement_specs['meas_params'])
+        specs_dict = self.get_specs(results, self.measurement_specs["meas_params"])
         print(specs_dict)
-        specs_dict['cost'] = self.cost_fun(specs_dict)
+        specs_dict["cost"] = self.cost_fun(specs_dict)
         return specs_dict
 
     def find_worst(self, spec_nums, spec_kwrd, ret_penalty=False):
-        if not hasattr(spec_nums, '__iter__'):
+        if not hasattr(spec_nums, "__iter__"):
             spec_nums = [spec_nums]
 
         penalties = self.compute_penalty(spec_nums, spec_kwrd)
@@ -340,15 +359,82 @@ class EvaluationEngine(object):
         # use self.spec_range[spec_kwrd] to get the min, max, and weight
         raise NotImplementedError
 
-def main():
-  #testing the cs amp functionality with Jinja2
-  dsn_netlist = '/path/to/optimizer/working_current/spectre_simulator/spectre/netlist_templates/7nm/fully_differential_folded_cascode.scs'
-  opamp_env = SpectreWrapper(tb_dict=dsn_netlist)
-  #w = 654e-9
-#  state = {"nA1":65e-9, "nA2":65e-9, "nA3":65e-9, "nA4":65e-9, "nA5":65e-9, "nA6":65e-9, "nA7":65e-9, "nA8":65e-9, "nB1":500e-9, "nB2":500e-9, "nB3":500e-9, "nB4":500e-9, "nB5":500e-9, "nB6":500e-9, "nB7":500e-9, "nB8":500e-9, "cc":10.0e-15, "vdc":1.4, "vcm":.7, "vbiasp":.7, "vbiasp1":.7, "vbiasp2":.7, "vbiasn":.7, "vbiasn1":.7, "vbiasn2":.7, "tempc":27}
-  state = {"nA1":65e-9, "nA2":65e-9, "nA3":65e-9, "nA4":65e-9, "nB1":2, "nB2":2, "nB3":2, "nB4":2, "vdc":0.7, "vcm":.7, "vbiasp2":.7, "vbiasn":.7, "tempc":27}
-  
-  opamp_env._create_design_and_simulate(state)
 
-if __name__=="__main__":
-  main()
+from collections import OrderedDict
+import yaml
+import yaml.constructor
+
+np.random.seed(1299)
+region_mapping = {
+    0: "cut-off",
+    1: "triode",
+    2: "saturation",
+    3: "sub-threshold",
+    4: "breakdown",
+}
+
+
+class OrderedDictYAMLLoader(yaml.Loader):
+    """
+    A YAML loader that loads mappings into ordered dictionaries.
+    """
+
+    def __init__(self, *args, **kwargs):
+        yaml.Loader.__init__(self, *args, **kwargs)
+
+        self.add_constructor("tag:yaml.org,2002:map", type(self).construct_yaml_map)
+        self.add_constructor("tag:yaml.org,2002:omap", type(self).construct_yaml_map)
+
+    def construct_yaml_map(self, node):
+        data = OrderedDict()
+        yield data
+        value = self.construct_mapping(node)
+        data.update(value)
+
+    def construct_mapping(self, node, deep=False):
+        if isinstance(node, yaml.MappingNode):
+            self.flatten_mapping(node)
+        else:
+            raise yaml.constructor.ConstructorError(
+                None,
+                None,
+                "expected a mapping node, but found %s" % node.id,
+                node.start_mark,
+            )
+
+        mapping = OrderedDict()
+        for key_node, value_node in node.value:
+            key = self.construct_object(key_node, deep=deep)
+            value = self.construct_object(value_node, deep=deep)
+            mapping[key] = value
+        return mapping
+
+
+def main():
+    # testing the cs amp functionality with Jinja2
+    CIR_YAML = "/home/pham/code/analog-ml/LEDRO/optimizer/working_current/spectre_simulator/spectre/specs_list_read/fully_differential_folded_cascode.yaml"
+    with open(CIR_YAML, "r") as f:
+        yaml_data = yaml.load(f, OrderedDictYAMLLoader)
+
+    opamp_env = SpectreWrapper(tb_dict=yaml_data["measurement"]["testbenches"]["ac_dc"])
+    state = {
+        "nA1": 65e-9,
+        "nA2": 65e-9,
+        "nA3": 65e-9,
+        "nA4": 65e-9,
+        "nB1": 2,
+        "nB2": 2,
+        "nB3": 2,
+        "nB4": 2,
+        "vdc": 0.7,
+        "vcm": 0.7,
+        "vbiasp2": 0.7,
+        "vbiasn": 0.7,
+        "tempc": 27,
+    }
+
+    opamp_env._create_design_and_simulate(state)
+
+
+if __name__ == "__main__":
+    main()
