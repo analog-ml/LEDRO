@@ -199,10 +199,33 @@ specs_id = list(specs.keys())
 
 
 class Levy:
-    def __init__(self, dim, params_id, specs_id, specs_ideal, vcm, vdd, tempc, ub, lb):
+    def __init__(
+        self,
+        dim,
+        params_id: list[str],
+        specs_id: list[str],
+        specs_ideal: list[float],
+        vcm: float,
+        vdd: float,
+        tempc: float,
+        ub: np.ndarray,
+        lb: np.ndarray,
+    ):
+        """
+        :param dim: Dimension of the problem. For analog sizing with fully differential folded cascode opamp, this is 17.
+        :param params_id: List of parameter names
+        :param specs_id: List of specification names
+        :param specs_ideal: Ideal values for specifications
+        :param vcm: Common mode voltage
+        :param vdd: Supply voltage
+        :param tempc: Temperature in Celsius
+        :param ub: Upper bounds for parameters
+        :param lb: Lower bounds for parameters
+        """
+
         self.dim = dim
-        self.params_id = params_id
-        self.specs_id = specs_id
+        self.params_id = params_id  # parameter names
+        self.specs_id = specs_id  # specification names
         self.specs_ideal = specs_ideal
         self.vcm = vcm
         self.vdd = vdd
@@ -210,41 +233,83 @@ class Levy:
         self.ub = ub
         self.lb = lb
 
-    def lookup(self, spec, goal_spec):
+    def lookup(self, spec: list[float], goal_spec: list[float]) -> np.ndarray:
+        """
+        Normalize the specifications based on their ideal values.
+        This function normalizes the specifications by calculating the relative difference
+        between the current specification values and the ideal values.
+        The normalization is done as per the formula:
+        (spec - goal_spec) / (goal_spec + spec)
+        This is a common approach to normalize specifications in analog design optimization.
+        Refer to the subsection II. Figure of Merit in the paper for details.
+
+        :param spec: Current specification values
+        :param goal_spec: Ideal specification values
+        :return: Normalized specifications
+        """
+        # assert isinstance(spec, list)
+        # assert isinstance(goal_spec, list)
+
         goal_spec = [float(e) for e in goal_spec]
         spec = [float(e) for e in spec]
         spec = np.array(spec)
         goal_spec = np.array(goal_spec)
 
-        norm_spec = (spec - goal_spec) / (
-            np.abs(goal_spec) + np.abs(spec)
-        )  # (spec-goal_spec)/(goal_spec+spec)
+        norm_spec = (spec - goal_spec) / (np.abs(goal_spec) + np.abs(spec))
+        # (spec-goal_spec)/(goal_spec+spec)
         return norm_spec
 
-    def reward(self, spec, goal_spec, specs_id):
-        rel_specs = self.lookup(spec, goal_spec)
-        pos_val = []
+    def reward(self, spec: list[float], goal_spec: list[float], specs_id: list[str]):
+        """
+        Calculate the reward based on the specifications and their ideal values.
+        :param spec: Current specification values
+        :param goal_spec: Ideal specification values
+        :param specs_id: List of specification names
+        :return: Reward value
+        """
+        # assert isinstance(spec, list)
+        # assert isinstance(goal_spec, list)
+        # assert isinstance(specs_id, list)
+
+        if len(spec) != len(goal_spec) or len(spec) != len(specs_id):
+            raise ValueError("spec, goal_spec, and specs_id must have the same length")
+
+        norm_specs = self.lookup(spec, goal_spec)
+
+        # pay attention to reward calculation, this is not quite the reward function in RL
+        # but rather a penalty value for the optimization process
         reward = 0
-        for i, rel_spec in enumerate(rel_specs):
+        for i, rel_spec in enumerate(norm_specs):
+            # For power,  smaller is better
+            # For gain, larger (compared to the target/goal) is better
+            # For other specs (pm, ugbw, etc.), smaller is better
             if specs_id[i] == "power" and rel_spec > 0:
                 reward += np.abs(rel_spec)  # /10
             elif specs_id[i] == "gain" and rel_spec < 0:
                 reward += 3 * np.abs(rel_spec)  # /10
             elif specs_id[i] != "power" and rel_spec < 0:
                 reward += np.abs(rel_spec)
+
+        logger.debug(
+            f"reward: {reward:.3g} for specs: {spec} and ideal specs: {goal_spec}"
+        )
         return reward  ###updated
 
     def __call__(self, x):
+        """
+        :param x: A numpy array of shape (dim,) representing the parameters to evaluate.
+        :return: A float value representing the reward for the given parameters.
+        """
+        # assert isinstance(x, np.ndarray)
         assert len(x) == self.dim
         assert x.ndim == 1
         assert np.all(x <= self.ub) and np.all(x >= self.lb)
-        # w = 1 + (x - 1.0) / 4.0
-        # val = np.sin(np.pi * w[0]) ** 2 + \
-        #     np.sum((w[1:self.dim - 1] - 1) ** 2 * (1 + 10 * np.sin(np.pi * w[1:self.dim - 1] + 1) ** 2)) + \
-        #     (w[self.dim - 1] - 1) ** 2 * (1 + np.sin(2 * np.pi * w[self.dim - 1])**2)
+
         CIR_YAML = "spectre_simulator/spectre/specs_list_read/fully_differential_folded_cascode.yaml"
         sim_env = OpampMeasMan(CIR_YAML)
         sample = x
+
+        # Round the values of Nfins (number of fins) to the nearest integer
         sample[1] = round(sample[1])
         sample[3] = round(sample[3])
         sample[5] = round(sample[5])
@@ -257,49 +322,21 @@ class Levy:
         sample = np.append(sample, self.vcm)
         sample = np.append(sample, self.vdd)
         sample = np.append(sample, self.tempc)
+
         param_val = [OrderedDict(list(zip(self.params_id, sample)))]
 
         cur_specs = OrderedDict(
             sorted(sim_env.evaluate(param_val)[0][1].items(), key=lambda k: k[0])
         )
-
         dict1 = OrderedDict(list(cur_specs.items())[:-5])  # all the original
-        dict3 = OrderedDict(list(cur_specs.items())[-5:-4])  # region
-        dict2 = OrderedDict(list(cur_specs.items())[-4:])  # remaining
-
-        dict2_values = list(dict2.values())
-        flattened_dict2 = [item for sublist in dict2_values for item in sublist]
-        dict2_nparray = np.array(flattened_dict2)
-
-        dict3_values = list(dict3.values())
-        flattened_dict3 = [item for sublist in dict3_values for item in sublist]
-        dict3_nparray = np.array(flattened_dict3)
-
         cur_specs = np.array(list(dict1.values()))[:-1]
         dummy = cur_specs[0]
         cur_specs[0] = cur_specs[1]
         cur_specs[1] = dummy
-        # f = open("/path/to/optimizer/out1.txt",'a')
-        # print("cur_specs", cur_specs, file=f)
+
         reward1 = self.reward(cur_specs, self.specs_ideal, self.specs_id)
-        f = open("out1.txt", "a")
-        for ordered_dict in param_val:
-            formatted_items = [
-                f"{k}: {format(v, '.3g')}" for k, v in ordered_dict.items()
-            ]
-            print(", ".join(formatted_items), file=f)
-        f.close()
-
-        f = open("out1.txt", "a")
-        for i, j in zip(range(11), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]):
-            region = region_mapping.get(int(dict3_nparray[i]), "unknown")
-            print(f"MM{j} is in {region}", end=", " if i < 10 else "\n", file=f)
-        print("reward", format(-reward1, ".3g"), file=f)
         logger.info(f"reward: {reward1:.3g}")
-        f.close()
-        val = reward1
-
-        return val
+        return reward1
 
 
 f = Levy(17, params_id, specs_id, specs_ideal, vcm, vdd, tempc, ub, lb)
@@ -308,10 +345,10 @@ turbo1 = Turbo1(
     f=f,  # Handle to objective function
     lb=lb,  # Numpy array specifying lower bounds
     ub=ub,  # Numpy array specifying upper bounds
-    n_init=20,  # Number of initial bounds from an Latin hypercube design
-    max_evals=100_0,  # Maximum number of evaluations
-    batch_size=5,  # How large batch size TuRBO uses
-    verbose=True,  # Print information from each batch
+    n_init=50,  # Number of initial bounds from an Latin hypercube design
+    max_evals=1200,  # Maximum number of evaluations
+    batch_size=50,  # How large batch size TuRBO uses
+    verbose=False,  # Print information from each batch
     use_ard=True,  # Set to true if you want to use ARD for the GP kernel
     max_cholesky_size=2000,  # When we switch from Cholesky to Lanczos
     n_training_steps=30,  # Number of steps of ADAM to learn the hypers
@@ -327,33 +364,7 @@ fX = turbo1.fX  # Observed values
 ind_best = np.argmin(fX)
 f_best, x_best = fX[ind_best], X[ind_best, :]
 
-print(
-    "Best value found:\n\tf(x) = %.3f\nObserved at:\n\tx = %s"
-    % (f_best, np.around(x_best, 3))
-)
-
-# turbo_m = TurboM(
-#     f=f,  # Handle to objective function
-#     lb=lb,  # Numpy array specifying lower bounds
-#     ub=ub,  # Numpy array specifying upper bounds
-#     n_init=10,  # Number of initial bounds from an Symmetric Latin hypercube design
-#     max_evals=300,  # Maximum number of evaluations
-#     n_trust_regions=5,  # Number of trust regions
-#     batch_size=10,  # How large batch size TuRBO uses
-#     verbose=True,  # Print information from each batch
-#     use_ard=True,  # Set to true if you want to use ARD for the GP kernel
-#     max_cholesky_size=200,  # When we switch from Cholesky to Lanczos
-#     n_training_steps=50,  # Number of steps of ADAM to learn the hypers
-#     min_cuda=10.40,  # Run on the CPU for small datasets
-#     device="cpu",  # "cpu" or "cuda"
-#     dtype="float32",  # float64 or float32
-# )
-
-# turbo_m.optimize()
-
-# X = turbo_m.X  # Evaluated points
-# fX = turbo_m.fX  # Observed values
-# ind_best = np.argmin(fX)
-# f_best, x_best = fX[ind_best], X[ind_best, :]
-
-# print("Best value found:\n\tf(x) = %.3f\nObserved at:\n\tx = %s" % (f_best, np.around(x_best, 3)))
+np.save("X.npy", X)
+np.save("fX", fX)
+print("Optimization completed.")
+print("Best value found:\n\tf(x) = %.3f\nObserved at:\n\tx = %s" % (f_best, x_best))
