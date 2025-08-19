@@ -12,14 +12,47 @@ import matplotlib
 import matplotlib.pyplot as plt
 import globalsy
 from spectre_simulator.spectre.meas_script.fully_differential_folded_cascode_meas_man import *
+
+
+import sys
+from loguru import logger
+
+logger.remove()
+log_level = "DEBUG"
+# log_format = "<green>{time:YYYY-MM-DD HH:mm:ss.SSS zz}</green> | <level>{level: <8}</level> | <yellow>Line {line: >4} ({file}):</yellow> <b>{message}</b>"
+# Custom format string
+log_format = (
+    "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
+    "<level>{level: <8}</level>| "
+    "<cyan>{module}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
+    "<level>{message}</level>"
+)
+
+# Clear default logger
+logger.remove()
+
+# Log to stdout
+logger.add(sys.stdout, format=log_format, level="INFO")
+
+# Log to file with rotation and retention
+logger.add(
+    "logs/turbo1_optimizer.log",
+    format=log_format,
+    level="DEBUG",
+    rotation="1 day",
+    retention="7 days",
+)
+
+
 np.random.seed(1299)
 region_mapping = {
-        0: 'cut-off',
-        1: 'triode',
-        2: 'saturation',
-        3: 'sub-threshold',
-        4: 'breakdown'
-        }
+    0: "cut-off",
+    1: "triode",
+    2: "saturation",
+    3: "sub-threshold",
+    4: "breakdown",
+}
+
 
 class OrderedDictYAMLLoader(yaml.Loader):
     """
@@ -29,8 +62,8 @@ class OrderedDictYAMLLoader(yaml.Loader):
     def __init__(self, *args, **kwargs):
         yaml.Loader.__init__(self, *args, **kwargs)
 
-        self.add_constructor(u'tag:yaml.org,2002:map', type(self).construct_yaml_map)
-        self.add_constructor(u'tag:yaml.org,2002:omap', type(self).construct_yaml_map)
+        self.add_constructor("tag:yaml.org,2002:map", type(self).construct_yaml_map)
+        self.add_constructor("tag:yaml.org,2002:omap", type(self).construct_yaml_map)
 
     def construct_yaml_map(self, node):
         data = OrderedDict()
@@ -42,8 +75,12 @@ class OrderedDictYAMLLoader(yaml.Loader):
         if isinstance(node, yaml.MappingNode):
             self.flatten_mapping(node)
         else:
-            raise yaml.constructor.ConstructorError(None, None,
-                                                    'expected a mapping node, but found %s' % node.id, node.start_mark)
+            raise yaml.constructor.ConstructorError(
+                None,
+                None,
+                "expected a mapping node, but found %s" % node.id,
+                node.start_mark,
+            )
 
         mapping = OrderedDict()
         for key_node, value_node in node.value:
@@ -51,6 +88,7 @@ class OrderedDictYAMLLoader(yaml.Loader):
             value = self.construct_object(value_node, deep=deep)
             mapping[key] = value
         return mapping
+
 
 # Define the ranges
 nA1_range = (2.5e-7, 4.5e-7)
@@ -82,76 +120,83 @@ vcm = 0.40
 vdd = 0.8
 tempc = 27
 
-lb = np.array([
-nA1_range[0], 
-nB1_range[0], 
-nA2_range[0], 
-nB2_range[0], 
-nA3_range[0], 
-nB3_range[0], 
-nA4_range[0], 
-nB4_range[0], 
-nA5_range[0], 
-nB5_range[0], 
-nA6_range[0], 
-nB6_range[0], 
-#nA7_range[0], 
-#nB7_range[0], 
-#nA8_range[0], 
-#nB8_range[0], 
-#nA9_range[0], 
-#nB9_range[0], 
-#vbiasp0_range[0],
-vbiasp1_range[0], 
-vbiasp2_range[0], 
-vbiasn0_range[0], 
-vbiasn1_range[0], 
-vbiasn2_range[0],
-#cc_range[0],
-])
-ub = np.array([
-nA1_range[1], 
-nB1_range[1], 
-nA2_range[1], 
-nB2_range[1], 
-nA3_range[1], 
-nB3_range[1], 
-nA4_range[1], 
-nB4_range[1], 
-nA5_range[1], 
-nB5_range[1], 
-nA6_range[1], 
-nB6_range[1], 
-#nA7_range[1], 
-#nB7_range[1], 
-#nA8_range[1], 
-#nB8_range[1], 
-#nA9_range[1], 
-#nB9_range[1], 
-#vbiasp0_range[1],
-vbiasp1_range[1], 
-vbiasp2_range[1], 
-vbiasn0_range[1], 
-vbiasn1_range[1], 
-vbiasn2_range[1],
-#cc_range[1]
-])
+lb = np.array(
+    [
+        nA1_range[0],
+        nB1_range[0],
+        nA2_range[0],
+        nB2_range[0],
+        nA3_range[0],
+        nB3_range[0],
+        nA4_range[0],
+        nB4_range[0],
+        nA5_range[0],
+        nB5_range[0],
+        nA6_range[0],
+        nB6_range[0],
+        # nA7_range[0],
+        # nB7_range[0],
+        # nA8_range[0],
+        # nB8_range[0],
+        # nA9_range[0],
+        # nB9_range[0],
+        # vbiasp0_range[0],
+        vbiasp1_range[0],
+        vbiasp2_range[0],
+        vbiasn0_range[0],
+        vbiasn1_range[0],
+        vbiasn2_range[0],
+        # cc_range[0],
+    ]
+)
+ub = np.array(
+    [
+        nA1_range[1],
+        nB1_range[1],
+        nA2_range[1],
+        nB2_range[1],
+        nA3_range[1],
+        nB3_range[1],
+        nA4_range[1],
+        nB4_range[1],
+        nA5_range[1],
+        nB5_range[1],
+        nA6_range[1],
+        nB6_range[1],
+        # nA7_range[1],
+        # nB7_range[1],
+        # nA8_range[1],
+        # nB8_range[1],
+        # nA9_range[1],
+        # nB9_range[1],
+        # vbiasp0_range[1],
+        vbiasp1_range[1],
+        vbiasp2_range[1],
+        vbiasn0_range[1],
+        vbiasn1_range[1],
+        vbiasn2_range[1],
+        # cc_range[1]
+    ]
+)
 # Get a random sample
 
-CIR_YAML = "/path/to/optimizer/working_current/spectre_simulator/spectre/specs_list_read/fully_differential_folded_cascode.yaml"
-with open(CIR_YAML, 'r') as f:
-            yaml_data = yaml.load(f, OrderedDictYAMLLoader)
+CIR_YAML = (
+    "spectre_simulator/spectre/specs_list_read/fully_differential_folded_cascode.yaml"
+)
+with open(CIR_YAML, "r") as f:
+    yaml_data = yaml.load(f, OrderedDictYAMLLoader)
 f.close()
-params = yaml_data['params']
-specs = yaml_data['target_spec']
+params = yaml_data["params"]
+specs = yaml_data["target_spec"]
 specs_ideal = []
 for spec in list(specs.values()):
-             specs_ideal.append(spec)
+    specs_ideal.append(spec)
 specs_ideal = np.array(specs_ideal)
 params_id = list(params.keys())
-specs_id = list(specs.keys())  
+specs_id = list(specs.keys())
 
-#import ipdb; ipdb.set_trace()
+# import ipdb; ipdb.set_trace()
+
 
 class Levy:
     def __init__(self, dim, params_id, specs_id, specs_ideal, vcm, vdd, tempc, ub, lb):
@@ -165,28 +210,29 @@ class Levy:
         self.ub = ub
         self.lb = lb
 
-    def lookup(self,spec, goal_spec):
+    def lookup(self, spec, goal_spec):
         goal_spec = [float(e) for e in goal_spec]
         spec = [float(e) for e in spec]
         spec = np.array(spec)
-        goal_spec =np.array(goal_spec)
+        goal_spec = np.array(goal_spec)
 
-        norm_spec = (spec-goal_spec)/(np.abs(goal_spec)+np.abs(spec)) #(spec-goal_spec)/(goal_spec+spec)
+        norm_spec = (spec - goal_spec) / (
+            np.abs(goal_spec) + np.abs(spec)
+        )  # (spec-goal_spec)/(goal_spec+spec)
         return norm_spec
-    
-    def reward(self,spec, goal_spec, specs_id):
-        rel_specs = self.lookup(spec, goal_spec)
-        pos_val = [] 
-        reward = 0
-        for i,rel_spec in enumerate(rel_specs):
-            if(specs_id[i] == 'power' and rel_spec > 0):
-                reward += np.abs(rel_spec) #/10
-            elif(specs_id[i] == 'gain' and rel_spec < 0):
-                reward += 3*np.abs(rel_spec) #/10
-            elif (specs_id[i] != 'power' and rel_spec < 0):
-                reward += np.abs(rel_spec)
-        return reward ###updated
 
+    def reward(self, spec, goal_spec, specs_id):
+        rel_specs = self.lookup(spec, goal_spec)
+        pos_val = []
+        reward = 0
+        for i, rel_spec in enumerate(rel_specs):
+            if specs_id[i] == "power" and rel_spec > 0:
+                reward += np.abs(rel_spec)  # /10
+            elif specs_id[i] == "gain" and rel_spec < 0:
+                reward += 3 * np.abs(rel_spec)  # /10
+            elif specs_id[i] != "power" and rel_spec < 0:
+                reward += np.abs(rel_spec)
+        return reward  ###updated
 
     def __call__(self, x):
         assert len(x) == self.dim
@@ -196,8 +242,8 @@ class Levy:
         # val = np.sin(np.pi * w[0]) ** 2 + \
         #     np.sum((w[1:self.dim - 1] - 1) ** 2 * (1 + 10 * np.sin(np.pi * w[1:self.dim - 1] + 1) ** 2)) + \
         #     (w[self.dim - 1] - 1) ** 2 * (1 + np.sin(2 * np.pi * w[self.dim - 1])**2)
-        CIR_YAML = "/path/to/optimizer/working_current/spectre_simulator/spectre/specs_list_read/fully_differential_folded_cascode.yaml"
-        sim_env = OpampMeasMan(CIR_YAML) 
+        CIR_YAML = "spectre_simulator/spectre/specs_list_read/fully_differential_folded_cascode.yaml"
+        sim_env = OpampMeasMan(CIR_YAML)
         sample = x
         sample[1] = round(sample[1])
         sample[3] = round(sample[3])
@@ -208,17 +254,18 @@ class Levy:
         # sample[13] = round(sample[13])
         # sample[15] = round(sample[15])
         # sample[17] = round(sample[17])
-        sample = np.append(sample,self.vcm)
-        sample = np.append(sample,self.vdd)
-        sample = np.append(sample,self.tempc)
-        param_val = [OrderedDict(list(zip(self.params_id,sample)))]
+        sample = np.append(sample, self.vcm)
+        sample = np.append(sample, self.vdd)
+        sample = np.append(sample, self.tempc)
+        param_val = [OrderedDict(list(zip(self.params_id, sample)))]
 
+        cur_specs = OrderedDict(
+            sorted(sim_env.evaluate(param_val)[0][1].items(), key=lambda k: k[0])
+        )
 
-        cur_specs = OrderedDict(sorted(sim_env.evaluate(param_val)[0][1].items(), key=lambda k:k[0]))
-        
-        dict1 = OrderedDict(list(cur_specs.items())[:-5]) #all the original
-        dict3 = OrderedDict(list(cur_specs.items())[-5:-4]) #region
-        dict2 = OrderedDict(list(cur_specs.items())[-4:]) #remaining 
+        dict1 = OrderedDict(list(cur_specs.items())[:-5])  # all the original
+        dict3 = OrderedDict(list(cur_specs.items())[-5:-4])  # region
+        dict2 = OrderedDict(list(cur_specs.items())[-4:])  # remaining
 
         dict2_values = list(dict2.values())
         flattened_dict2 = [item for sublist in dict2_values for item in sublist]
@@ -227,29 +274,33 @@ class Levy:
         dict3_values = list(dict3.values())
         flattened_dict3 = [item for sublist in dict3_values for item in sublist]
         dict3_nparray = np.array(flattened_dict3)
-                
+
         cur_specs = np.array(list(dict1.values()))[:-1]
         dummy = cur_specs[0]
         cur_specs[0] = cur_specs[1]
         cur_specs[1] = dummy
-    # f = open("/path/to/optimizer/out1.txt",'a')
-    # print("cur_specs", cur_specs, file=f)
-        reward1 = self.reward(cur_specs,self.specs_ideal,self.specs_id)
-        f = open("/path/to/optimizer/out1.txt",'a')
+        # f = open("/path/to/optimizer/out1.txt",'a')
+        # print("cur_specs", cur_specs, file=f)
+        reward1 = self.reward(cur_specs, self.specs_ideal, self.specs_id)
+        f = open("out1.txt", "a")
         for ordered_dict in param_val:
-            formatted_items = [f"{k}: {format(v, '.3g')}" for k, v in ordered_dict.items()]
+            formatted_items = [
+                f"{k}: {format(v, '.3g')}" for k, v in ordered_dict.items()
+            ]
             print(", ".join(formatted_items), file=f)
         f.close()
 
-        f = open("/path/to/optimizer/out1.txt",'a')
-        for i, j in zip(range(11),[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]):
-            region = region_mapping.get(int(dict3_nparray[i]), 'unknown')
-            print(f"MM{j} is in {region}", end=', ' if i < 10 else '\n', file=f)
-        print("reward", format(-reward1, '.3g'), file=f)        
+        f = open("out1.txt", "a")
+        for i, j in zip(range(11), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]):
+            region = region_mapping.get(int(dict3_nparray[i]), "unknown")
+            print(f"MM{j} is in {region}", end=", " if i < 10 else "\n", file=f)
+        print("reward", format(-reward1, ".3g"), file=f)
+        logger.info(f"reward: {reward1:.3g}")
         f.close()
         val = reward1
 
         return val
+
 
 f = Levy(17, params_id, specs_id, specs_ideal, vcm, vdd, tempc, ub, lb)
 
@@ -258,7 +309,7 @@ turbo1 = Turbo1(
     lb=lb,  # Numpy array specifying lower bounds
     ub=ub,  # Numpy array specifying upper bounds
     n_init=20,  # Number of initial bounds from an Latin hypercube design
-    max_evals = 100,  # Maximum number of evaluations
+    max_evals=100_0,  # Maximum number of evaluations
     batch_size=5,  # How large batch size TuRBO uses
     verbose=True,  # Print information from each batch
     use_ard=True,  # Set to true if you want to use ARD for the GP kernel
@@ -276,7 +327,10 @@ fX = turbo1.fX  # Observed values
 ind_best = np.argmin(fX)
 f_best, x_best = fX[ind_best], X[ind_best, :]
 
-print("Best value found:\n\tf(x) = %.3f\nObserved at:\n\tx = %s" % (f_best, np.around(x_best, 3)))
+print(
+    "Best value found:\n\tf(x) = %.3f\nObserved at:\n\tx = %s"
+    % (f_best, np.around(x_best, 3))
+)
 
 # turbo_m = TurboM(
 #     f=f,  # Handle to objective function
@@ -303,6 +357,3 @@ print("Best value found:\n\tf(x) = %.3f\nObserved at:\n\tx = %s" % (f_best, np.a
 # f_best, x_best = fX[ind_best], X[ind_best, :]
 
 # print("Best value found:\n\tf(x) = %.3f\nObserved at:\n\tx = %s" % (f_best, np.around(x_best, 3)))
-
-
-
