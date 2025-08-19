@@ -17,6 +17,7 @@ import glob
 from spmetrics.utils import (
     run_ngspice_simulation,
     setup_ac_simulation,
+    setup_op_simulation,
 )
 from spmetrics.metrics import (
     # AC simulation functions
@@ -24,6 +25,7 @@ from spmetrics.metrics import (
     compute_unity_gain_bandwidth,
     compute_phase_margin,
     compute_ac_gain,
+    compute_power,
 )
 
 debug = False
@@ -338,11 +340,16 @@ class SpectreWrapper(object):
         phase_margin = compute_phase_margin("output_ac.dat")
         ac_gain = compute_ac_gain("output_ac.dat")
 
+        op_netlist = setup_op_simulation(netlist, input_nodes, measure_vars=["i(v0)"])
+        run_ngspice_simulation(op_netlist)
+        power = compute_power("output_op.dat")
+
         metrics = {}
         metrics["bandwidth"] = bandwidth
         metrics["ugbw"] = ubw
         metrics["pm"] = phase_margin
         metrics["ac_gain"] = ac_gain
+        metrics["power"] = power
         metrics["valid"] = valid
         res = {"df": df, "metrics": metrics}
         logger.info(f"Metrics: {metrics}")

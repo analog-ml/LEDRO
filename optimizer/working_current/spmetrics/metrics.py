@@ -293,7 +293,6 @@ def compute_ac_gain(logfile: str) -> float:
         pass
     # for 2 output nodes
     elif num_columns == 6:
-        print("Processing 6 columns data")
         # v_d = data_ac[:, 4] + 1j * data_ac[:, 5]
         v_1 = data_ac[:, 1] + 1j * data_ac[:, 2]
         v_2 = data_ac[:, 4] + 1j * data_ac[:, 5]
@@ -343,6 +342,31 @@ def compute_tran_gain(logfile: str) -> float:
         raise ValueError("The input file must have 2 columns.")
 
     return tran_gain
+
+
+def compute_power(logfile: str) -> float:
+    """
+    Computes the power consumption from a simulation log file.
+
+    The function reads a log file containing simulation data, extracts the output current,
+    and computes the power as the product of the output current and the supply voltage.
+    Args:
+        logfile (str): Path to the simulation log file (CSV format).
+
+    Returns:
+        float: The computed power consumption in watts.
+    Raises:
+        ValueError: If the log file does not have at least 4 columns.
+    """
+    data_op = np.genfromtxt(logfile, skip_header=1).reshape(-1, 2)
+    num_columns = data_op.shape[1]
+    assert (
+        num_columns == 2
+    ), "Log file must have at least 2 columns with current in the 2nd column."
+
+    # Extract output current from the second column
+    iout = data_op[:, 1].item()
+    return -iout
 
 
 def compute_icmr(logfile: str) -> float:

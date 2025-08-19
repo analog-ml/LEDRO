@@ -112,7 +112,7 @@ class ACTB(object):
         gain = metrics["ac_gain"]
         ugbw, valid = metrics["ugbw"], metrics["valid"]
         phm = metrics["pm"]
-        power = 1e-8  # placeholder for power, as it is not computed in this example
+        power = metrics["power"]
 
         # this condition will be used!
         if globalsy.counterrrr < 200:
