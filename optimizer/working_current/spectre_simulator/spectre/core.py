@@ -204,21 +204,9 @@ class SpectreWrapper(object):
 
     def _simulate(self, fpath):
         command = ["ngspice", "-b", fpath]
-        # command = f"ngspice -b {fpath} > /dev/null 2>&1"
-
-        # log_file = os.path.join(os.path.dirname(fpath), "log.txt")
-        # err_file = os.path.join(os.path.dirname(fpath), "err_log.txt")
-
-        # with open(log_file, "w") as file1, open(err_file, "w") as file2:
-        #     exit_code = subprocess.call(
-        #         command, cwd=os.path.dirname(fpath), stdout=file1, stderr=file2
-        #     )
-        # file1.close()
-        # file2.close()
 
         exit_code = subprocess.call(
             command,
-            # shell=True,
             cwd=os.path.dirname(fpath),
             stdout=subprocess.DEVNULL,
             stderr=subprocess.STDOUT,
@@ -263,7 +251,17 @@ class SpectreWrapper(object):
         names = get_variable_names(os.path.join(design_folder, "output.log"))
 
         # print("length of names:", len(names))
-        # Output: ['v(voutp)', 'i(v0)', '@nm0[gm]', '@nm0[ids]', '@nm0[vth]', 'vgs_nm0', 'vds_nm0', '@nm1[gm]', '@nm1[ids]', '@nm1[vth]', 'vgs_nm1', 'vds_nm1', '@nm2[gm]', '@nm2[ids]', '@nm2[vth]', 'vgs_nm2', 'vds_nm2', '@nm3[gm]', '@nm3[ids]', '@nm3[vth]', 'vgs_nm3', 'vds_nm3', '@nm4[gm]', '@nm4[ids]', '@nm4[vth]', 'v(vgs_nm4)', 'v(vds_nm4)', '@nm5[gm]', '@nm5[ids]', '@nm5[vth]', 'vgs_nm5', 'vds_nm5', '@nm6[gm]', '@nm6[ids]', '@nm6[vth]', 'vgs_nm6', 'vds_nm6', '@nm7[gm]', '@nm7[ids]', '@nm7[vth]', 'vgs_nm7', 'vds_nm7', '@nm8[gm]', '@nm8[ids]', '@nm8[vth]', 'vgs_nm8', 'vds_nm8', '@nm9[gm]', '@nm9[ids]', '@nm9[vth]', 'v(vgs_nm9)', 'v(vds_nm9)', '@nm10[gm]', '@nm10[ids]', '@nm10[vth]', 'v(vgs_nm10)', 'v(vds_nm10)']
+        # Output: ['v(voutp)', 'i(v0)', '@nm0[gm]', '@nm0[ids]', '@nm0[vth]', 'vgs_nm0', 'vds_nm0',
+        # '@nm1[gm]', '@nm1[ids]', '@nm1[vth]', 'vgs_nm1', 'vds_nm1',
+        # '@nm2[gm]', '@nm2[ids]', '@nm2[vth]', 'vgs_nm2', 'vds_nm2',
+        # '@nm3[gm]', '@nm3[ids]', '@nm3[vth]', 'vgs_nm3', 'vds_nm3',
+        # '@nm4[gm]', '@nm4[ids]', '@nm4[vth]', 'v(vgs_nm4)', 'v(vds_nm4)',
+        # '@nm5[gm]', '@nm5[ids]', '@nm5[vth]', 'vgs_nm5', 'vds_nm5',
+        # '@nm6[gm]', '@nm6[ids]', '@nm6[vth]', 'vgs_nm6', 'vds_nm6',
+        # '@nm7[gm]', '@nm7[ids]', '@nm7[vth]', 'vgs_nm7', 'vds_nm7',
+        # '@nm8[gm]', '@nm8[ids]', '@nm8[vth]', 'vgs_nm8', 'vds_nm8',
+        # '@nm9[gm]', '@nm9[ids]', '@nm9[vth]', 'v(vgs_nm9)', 'v(vds_nm9)',
+        # '@nm10[gm]', '@nm10[ids]', '@nm10[vth]', 'v(vgs_nm10)', 'v(vds_nm10)']
 
         # Ensure the number of values matches the number of column names
         assert len(vals) == len(
@@ -307,10 +305,11 @@ class SpectreWrapper(object):
                 axis=1,
             )
 
-        # write a new file with the same netlist definition without .control block
+        # ===========================================================
+        # Write a new file with the same netlist definition without .control block
         # this is needed for the ac simulation to work
-        # we assume that the netlist file is in the design_folder
-        # and it has a .scs extension
+        # we assume that the netlist file is in the design_folder and it has a .scs extension
+        # ===========================================================
         if not os.path.exists(design_folder):
             raise FileNotFoundError(f"Design folder {design_folder} does not exist")
 
@@ -328,6 +327,7 @@ class SpectreWrapper(object):
                     fw.write(".end")
                     break
 
+        # Perform simulation & obtain performance metrics
         netlist = open(os.path.join(design_folder, "netlist.scs")).read()
         input_nodes = ["Vinn", "Vinp"]
         output_nodes = ["Voutn", "Voutp"]
