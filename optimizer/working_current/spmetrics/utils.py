@@ -181,6 +181,35 @@ def setup_ac_simulation(
     return new_netlist
 
 
+def setup_op_simulation(
+    netlist: str, input_name: list[str], measure_vars: list[str] = ["i(v0)"]
+) -> str:
+    """
+    Inserts operating point simulation commands into a SPICE netlist string.
+
+    Args:
+        netlist (str): The original SPICE netlist as a string.
+        input_name (list[str]): List of input source names (currently unused).
+        measure_vars (list[str], optional): List of variables to measure during the simulation. Defaults to ["i(v0)"].
+
+    Returns:
+        str: Modified netlist string with operating point simulation commands inserted before the '.end' statement.
+    """
+    end_index = netlist.index(".end")
+    measure_vars = " ".join(measure_vars)
+    simulation_commands = f"""
+      .control
+        pre_osdi /home/pham/shared_files/ngspice/osdilibs/bsimcmg.osdi
+        op        
+        set filetype=ascii
+        set wr_vecnames
+        wrdata output_op.dat {measure_vars}
+      .endc
+     """
+    new_netlist = netlist[:end_index] + simulation_commands + netlist[end_index:]
+    return new_netlist
+
+
 def setup_trans_simulation(
     netlist: str, input_name: str = "in1", output_nodes: list[str] = ["out"]
 ) -> str:
