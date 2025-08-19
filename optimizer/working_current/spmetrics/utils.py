@@ -1,6 +1,7 @@
 import re
 import subprocess
 import shutil
+import os
 
 
 def setup_dc_simulation(
@@ -287,17 +288,24 @@ def setup_common_mode_simulation(netlist: str) -> str:
     return netlist_cmrr
 
 
-def run_ngspice_simulation(netlist: str) -> None:
+def run_ngspice_simulation(netlist: str, suppress_execution_log: bool = True) -> None:
     """
     Runs a simulation using NGSpice with the provided netlist and writes the output to a specified file.
 
     Args:
         netlist (str): The SPICE netlist to be simulated.
-        output_file (str): The file where the simulation results will be written.
+        suppress_execution_log (bool, optional): If True, suppresses the execution log output. Defaults to True.
     """
     with open("/tmp/temp_netlist.cir", "w") as f:
         f.write(netlist)
 
-    subprocess.run(
-        ["ngspice", "-b", "-o", "/tmp/ngspice", "/tmp/temp_netlist.cir"], check=True
-    )
+    command = ["ngspice", "-b", "-o", "/tmp/ngspice", "/tmp/temp_netlist.cir"]
+
+    # Check if ngspice is installed
+    if shutil.which("ngspice") is None:
+        raise FileNotFoundError("NGSpice is not installed or not found in PATH.")
+    if suppress_execution_log:
+        with open(os.devnull, "w") as devnull:
+            subprocess.run(command, check=True, stdout=devnull)
+    else:
+        subprocess.run(command, check=True)
