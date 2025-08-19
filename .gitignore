@@ -201,3 +201,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+*.dat
+*.log
+*.out
+*.csv
+*.json
+*.txt
