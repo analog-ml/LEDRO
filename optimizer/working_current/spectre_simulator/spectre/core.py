@@ -13,8 +13,110 @@ from spectre_simulator.util.core import IDEncoder, Design
 from spectre_simulator.spectre.parser import SpectreParser
 import IPython
 import shutil
+import glob
+from spmetrics.utils import (
+    run_ngspice_simulation,
+    setup_ac_simulation,
+)
+from spmetrics.metrics import (
+    # AC simulation functions
+    compute_bandwidth,
+    compute_unity_gain_bandwidth,
+    compute_phase_margin,
+    compute_ac_gain,
+)
 
 debug = False
+import pandas as pd
+
+import sys
+from loguru import logger
+
+logger.remove()
+log_level = "DEBUG"
+# log_format = "<green>{time:YYYY-MM-DD HH:mm:ss.SSS zz}</green> | <level>{level: <8}</level> | <yellow>Line {line: >4} ({file}):</yellow> <b>{message}</b>"
+# Custom format string
+log_format = (
+    "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
+    "<level>{level: <8}</level>| "
+    "<cyan>{module}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
+    "<level>{message}</level>"
+)
+
+# Clear default logger
+logger.remove()
+
+# Log to stdout
+logger.add(sys.stdout, format=log_format, level="INFO")
+
+# Log to file with rotation and retention
+logger.add(
+    "logs/core.log",
+    format=log_format,
+    level="DEBUG",
+    rotation="1 day",
+    retention="7 days",
+)
+
+
+def get_variable_names(log_path):
+    variable_names = []
+    with open(log_path, "r") as f:
+        in_variables_section = False
+        for line in f:
+            if line.strip() == "Variables:":
+                in_variables_section = True
+                continue
+            if in_variables_section:
+                if line.strip() == "" or line.startswith("Values:"):
+                    break
+                # Each variable line: <index> <name> <type>
+                parts = line.strip().split()
+                if len(parts) >= 2:
+                    variable_names.append(parts[1])
+    return variable_names
+
+
+def get_values(log_path):
+    values = []
+    with open(log_path, "r") as f:
+        in_values_section = False
+        for line in f:
+            if line.strip() == "Values:":
+                in_values_section = True
+                continue
+            if in_values_section:
+                if line.strip() == "":
+                    break
+                # Each value line: <index> <value>
+                parts = line.strip().split()
+                for part in parts:
+                    try:
+                        values.append(float(part))
+                    except ValueError:
+                        pass
+    return values[1:]  # Skip the first value which is usually an index or header
+
+
+# Helper function to determine PMOS region
+def get_pmos_region(vgs, vds, vth):
+    if vgs > vth:
+        return 0  # cut-off
+    else:
+        if vds > vgs - vth:
+            return 1  # triode
+        else:
+            return 2  # saturation
+
+
+def get_nmos_region(vgs, vds, vth):
+    if vgs < vth:
+        return 0  # cut-off
+    else:
+        if vds < vgs - vth:
+            return 1  # triode
+        else:
+            return 2  # saturation
 
 
 def get_config_info():
@@ -88,9 +190,8 @@ class SpectreWrapper(object):
         return fname
 
     def _create_design(self, state, new_fname):
-        print("Creating design with state: ", state)
+        logger.debug(f"Creating a new design with {state=} ")
         output = self.template.render(**state)
-        print("Template/output file: \n", output)
 
         design_folder = os.path.join(self.gen_dir, new_fname)
         os.makedirs(design_folder, exist_ok=True)
@@ -98,23 +199,30 @@ class SpectreWrapper(object):
         with open(fpath, "w") as f:
             f.write(output)
             f.close()
-
-        print("Design created at: ", fpath)
-        exit()  # For debugging purposes, remove this line in production
+        logger.debug(f"Creating a new design at {fpath=} ")
         return design_folder, fpath
 
     def _simulate(self, fpath):
-        command = ["spectre", "%s" % fpath, "-format", "psfbin", "> /dev/null 2>&1"]
-        log_file = os.path.join(os.path.dirname(fpath), "log.txt")
-        err_file = os.path.join(os.path.dirname(fpath), "err_log.txt")
+        command = ["ngspice", "-b", fpath]
+        # command = f"ngspice -b {fpath} > /dev/null 2>&1"
 
-        with open(log_file, "w") as file1, open(err_file, "w") as file2:
-            print("executed command (subprocess.call): ", command)
-            exit_code = subprocess.call(
-                command, cwd=os.path.dirname(fpath), stdout=file1, stderr=file2
-            )
-        file1.close()
-        file2.close()
+        # log_file = os.path.join(os.path.dirname(fpath), "log.txt")
+        # err_file = os.path.join(os.path.dirname(fpath), "err_log.txt")
+
+        # with open(log_file, "w") as file1, open(err_file, "w") as file2:
+        #     exit_code = subprocess.call(
+        #         command, cwd=os.path.dirname(fpath), stdout=file1, stderr=file2
+        #     )
+        # file1.close()
+        # file2.close()
+
+        exit_code = subprocess.call(
+            command,
+            # shell=True,
+            cwd=os.path.dirname(fpath),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.STDOUT,
+        )
 
         info = 0
         if debug:
@@ -122,7 +230,6 @@ class SpectreWrapper(object):
             print(fpath)
         if exit_code % 256:
             info = 1  # this means an error has occurred
-
         return info
 
     def _create_design_and_simulate(self, state, dsn_name=None, verbose=False):
@@ -135,16 +242,8 @@ class SpectreWrapper(object):
             dsn_name = str(dsn_name)
         if verbose:
             print("dsn_name", dsn_name)
-        # add additional width metrics to 45nm netlist
-        # if "45nm" in dsn_name:
-        #   wdict = {}
-        #   for each_param in state:
-        #     if not("cc" in each_param):
-        #       wdict['w'+each_param] = state[each_param]*654e-9
-        #   state.update(wdict)
 
         design_folder, fpath = self._create_design(state, dsn_name)
-        print("fpath: ", fpath)
         info = self._simulate(fpath)
         results = self._parse_result(design_folder)
         if self.post_process:
@@ -152,24 +251,102 @@ class SpectreWrapper(object):
             # shutil.rmtree(design_folder)
             #    print("design_folder", design_folder)
             return state, specs, info
-        # print("design_folder", design_folder)
-        specs = results
 
+        specs = results
         return state, specs, info
 
     def _parse_result(self, design_folder):
-        _, folder_name = os.path.split(design_folder)
-        raw_folder = os.path.join(design_folder, "{}.raw".format(folder_name))
-        res = SpectreParser.parse(raw_folder)
 
-        ##print(os.system("ls -l " + os.path.join("/proc",str(os.getpid()),"fd")))
-        # for fd in os.listdir(os.path.join("/proc", str(os.getpid()), "fd")):
-        #    if int(fd) == 16:
-        #      os.close(int(fd))
+        logger.debug(f"Parsing results from design folder: {design_folder}")
 
-        # onlyfiles = [f for f in os.listdir(raw_folder) if os.path.isfile(os.path.join(raw_folder, f))]
-        # for file in os.listdir(raw_folder):
-        #  os.remove(os.path.join(raw_folder, file))
+        vals = get_values(os.path.join(design_folder, "output.log"))
+        names = get_variable_names(os.path.join(design_folder, "output.log"))
+
+        # print("length of names:", len(names))
+        # Output: ['v(voutp)', 'i(v0)', '@nm0[gm]', '@nm0[ids]', '@nm0[vth]', 'vgs_nm0', 'vds_nm0', '@nm1[gm]', '@nm1[ids]', '@nm1[vth]', 'vgs_nm1', 'vds_nm1', '@nm2[gm]', '@nm2[ids]', '@nm2[vth]', 'vgs_nm2', 'vds_nm2', '@nm3[gm]', '@nm3[ids]', '@nm3[vth]', 'vgs_nm3', 'vds_nm3', '@nm4[gm]', '@nm4[ids]', '@nm4[vth]', 'v(vgs_nm4)', 'v(vds_nm4)', '@nm5[gm]', '@nm5[ids]', '@nm5[vth]', 'vgs_nm5', 'vds_nm5', '@nm6[gm]', '@nm6[ids]', '@nm6[vth]', 'vgs_nm6', 'vds_nm6', '@nm7[gm]', '@nm7[ids]', '@nm7[vth]', 'vgs_nm7', 'vds_nm7', '@nm8[gm]', '@nm8[ids]', '@nm8[vth]', 'vgs_nm8', 'vds_nm8', '@nm9[gm]', '@nm9[ids]', '@nm9[vth]', 'v(vgs_nm9)', 'v(vds_nm9)', '@nm10[gm]', '@nm10[ids]', '@nm10[vth]', 'v(vgs_nm10)', 'v(vds_nm10)']
+
+        # Ensure the number of values matches the number of column names
+        assert len(vals) == len(
+            names
+        ), "Mismatch between values and column names length"
+
+        # turn "vals" and "names" into a pandas DataFrame
+        df = pd.DataFrame([vals], columns=names)
+
+        # Add region columns for PMOS transistors: nm5, nm6, nm2, nm1
+        pmos_list = ["nm5", "nm6", "nm2", "nm1"]
+        for pmos in pmos_list:
+            # Get column names for Vgs, Vds, Vth
+            vgs_col = f"vgs_{pmos}"
+            vds_col = f"vds_{pmos}"
+            vth_col = f"@{pmos}[vth]"
+            # Some Vgs/Vds columns are named as v(vgs_nmX), v(vds_nmX)
+            if vgs_col not in df.columns:
+                vgs_col = f"v(vgs_{pmos})"
+            if vds_col not in df.columns:
+                vds_col = f"v(vds_{pmos})"
+            # Compute region
+            df[f"@{pmos}[region]"] = df.apply(
+                lambda row: get_pmos_region(row[vgs_col], row[vds_col], -row[vth_col]),
+                axis=1,
+            )
+
+        # Add region columns for NMOS transistors: nm8, nm7, nm3, nm0, nm10, nm9, nm4
+        nmos_list = ["nm8", "nm7", "nm3", "nm0", "nm10", "nm9", "nm4"]
+        for nmos in nmos_list:
+            vgs_col = f"vgs_{nmos}"
+            vds_col = f"vds_{nmos}"
+            vth_col = f"@{nmos}[vth]"
+            # Some Vgs/Vds columns are named as v(vgs_nmX), v(vds_nmX)
+            if vgs_col not in df.columns:
+                vgs_col = f"v(vgs_{nmos})"
+            if vds_col not in df.columns:
+                vds_col = f"v(vds_{nmos})"
+            df[f"@{nmos}[region]"] = df.apply(
+                lambda row: get_nmos_region(row[vgs_col], row[vds_col], row[vth_col]),
+                axis=1,
+            )
+
+        # write a new file with the same netlist definition without .control block
+        # this is needed for the ac simulation to work
+        # we assume that the netlist file is in the design_folder
+        # and it has a .scs extension
+        if not os.path.exists(design_folder):
+            raise FileNotFoundError(f"Design folder {design_folder} does not exist")
+
+        # Find the netlist file in the design folder
+        # Assuming there is only one .scs file in the design folder
+        netlist_path = glob.glob(os.path.join(design_folder, "*.scs"))[0]
+        new_netlist_path = os.path.join(design_folder, "netlist.scs")
+
+        with open(netlist_path, "r") as fr, open(new_netlist_path, "w") as fw:
+            for line in fr:
+                # Remove the first line if it contains 'ngspice'
+                if not line.startswith(".control"):
+                    fw.write(line)
+                else:
+                    fw.write(".end")
+                    break
+
+        netlist = open(os.path.join(design_folder, "netlist.scs")).read()
+        input_nodes = ["Vinn", "Vinp"]
+        output_nodes = ["Voutn", "Voutp"]
+        ac_netlist = setup_ac_simulation(netlist, input_nodes, output_nodes)
+        run_ngspice_simulation(ac_netlist)
+        bandwidth = compute_bandwidth("output_ac.dat")
+        ubw, valid = compute_unity_gain_bandwidth("output_ac.dat")
+        phase_margin = compute_phase_margin("output_ac.dat")
+        ac_gain = compute_ac_gain("output_ac.dat")
+
+        metrics = {}
+        metrics["bandwidth"] = bandwidth
+        metrics["ugbw"] = ubw
+        metrics["pm"] = phase_margin
+        metrics["ac_gain"] = ac_gain
+        metrics["valid"] = valid
+        res = {"df": df, "metrics": metrics}
+        logger.info(f"Metrics: {metrics}")
+
         return res
 
     def run(self, states, design_names=None, verbose=False):
@@ -302,6 +479,7 @@ class EvaluationEngine(object):
         return_loc = netlist_module.return_path()
         # print(return_loc)
         shutil.rmtree(return_loc)
+        logger.info(f"[x] simulated {results=}")
         return results
 
     def _evaluate(self, design, parallel_config):
@@ -417,19 +595,28 @@ def main():
         yaml_data = yaml.load(f, OrderedDictYAMLLoader)
 
     opamp_env = SpectreWrapper(tb_dict=yaml_data["measurement"]["testbenches"]["ac_dc"])
+
+    data = "\nInitial Data:\nI got these points and their reward: metrics- gain:  5.77 , UGBW:  2.91e+04 , PM:  69.2 , power:  4.32e-12 with nA1: 7.45e-08, nB1: 6, nA2: 1.4e-07, nB2: 2, nA3: 3.75e-08, nB3: 3, nA4: 3.04e-07, nB4: 3, nA5: 3.72e-08, nB5: 4, nA6: 1.24e-07, nB6: 2, vbiasp1: 0.659, vbiasp2: 0.408, vbiasn0: 0.0525, vbiasn1: 0.016, vbiasn2: 0.352, vcm: 0.4, vdd: 0.8, tempc: 27 and transistor regions MM0 is in cut-off, MM1 is in cut-off, MM2 is in cut-off, MM3 is in cut-off, MM4 is in cut-off, MM5 is in cut-off, MM6 is in cut-off, MM7 is in cut-off, MM8 is in cut-off, MM9 is in cut-off, MM10 is in cut-off and reward -3.99. "
     state = {
-        "nA1": 65e-9,
-        "nA2": 65e-9,
-        "nA3": 65e-9,
-        "nA4": 65e-9,
-        "nB1": 2,
+        "nA1": 7.45e-08,
+        "nB1": 6,
+        "nA2": 1.4e-07,
         "nB2": 2,
-        "nB3": 2,
-        "nB4": 2,
-        "vdc": 0.7,
-        "vcm": 0.7,
-        "vbiasp2": 0.7,
-        "vbiasn": 0.7,
+        "nA3": 3.75e-08,
+        "nB3": 3,
+        "nA4": 3.04e-07,
+        "nB4": 3,
+        "nA5": 3.72e-08,
+        "nB5": 4,
+        "nA6": 1.24e-07,
+        "nB6": 2,
+        "vbiasp1": 0.659,
+        "vbiasp2": 0.408,
+        "vbiasn0": 0.0525,
+        "vbiasn1": 0.016,
+        "vbiasn2": 0.352,
+        "vcm": 0.4,
+        "vdd": 0.8,
         "tempc": 27,
     }
 
