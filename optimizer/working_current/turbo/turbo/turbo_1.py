@@ -99,7 +99,9 @@ class Turbo1:
         self.mean = np.zeros((0, 1))
         self.signal_var = np.zeros((0, 1))
         self.noise_var = np.zeros((0, 1))
-        self.lengthscales = np.zeros((0, self.dim)) if self.use_ard else np.zeros((0, 1))
+        self.lengthscales = (
+            np.zeros((0, self.dim)) if self.use_ard else np.zeros((0, 1))
+        )
 
         # Tolerances and counters
         self.n_cand = min(100 * self.dim, 5000)
@@ -171,7 +173,11 @@ class Turbo1:
             X_torch = torch.tensor(X).to(device=device, dtype=dtype)
             y_torch = torch.tensor(fX).to(device=device, dtype=dtype)
             gp = train_gp(
-                train_x=X_torch, train_y=y_torch, use_ard=self.use_ard, num_steps=n_training_steps, hypers=hypers
+                train_x=X_torch,
+                train_y=y_torch,
+                use_ard=self.use_ard,
+                num_steps=n_training_steps,
+                hypers=hypers,
             )
 
             # Save state dict
@@ -181,14 +187,22 @@ class Turbo1:
         x_center = X[fX.argmin().item(), :][None, :]
         weights = gp.covar_module.base_kernel.lengthscale.cpu().detach().numpy().ravel()
         weights = weights / weights.mean()  # This will make the next line more stable
-        weights = weights / np.prod(np.power(weights, 1.0 / len(weights)))  # We now have weights.prod() = 1
+        weights = weights / np.prod(
+            np.power(weights, 1.0 / len(weights))
+        )  # We now have weights.prod() = 1
         lb = np.clip(x_center - weights * length / 2.0, 0.0, 1.0)
         ub = np.clip(x_center + weights * length / 2.0, 0.0, 1.0)
 
         # Draw a Sobolev sequence in [lb, ub]
         seed = np.random.randint(int(1e6))
         sobol = SobolEngine(self.dim, scramble=True, seed=seed)
-        pert = sobol.draw(self.n_cand).to(dtype=dtype, device=device).cpu().detach().numpy()
+        pert = (
+            sobol.draw(self.n_cand)
+            .to(dtype=dtype, device=device)
+            .cpu()
+            .detach()
+            .numpy()
+        )
         pert = lb + (ub - lb) * pert
 
         # Create a perturbation mask
@@ -211,9 +225,18 @@ class Turbo1:
         gp = gp.to(dtype=dtype, device=device)
 
         # We use Lanczos for sampling if we have enough data
-        with torch.no_grad(), gpytorch.settings.max_cholesky_size(self.max_cholesky_size):
+        with torch.no_grad(), gpytorch.settings.max_cholesky_size(
+            self.max_cholesky_size
+        ):
             X_cand_torch = torch.tensor(X_cand).to(device=device, dtype=dtype)
-            y_cand = gp.likelihood(gp(X_cand_torch)).sample(torch.Size([self.batch_size])).t().cpu().detach().numpy()
+            y_cand = (
+                gp.likelihood(gp(X_cand_torch))
+                .sample(torch.Size([self.batch_size]))
+                .t()
+                .cpu()
+                .detach()
+                .numpy()
+            )
 
         # Remove the torch variables
         del X_torch, y_torch, X_cand_torch, gp
@@ -273,7 +296,11 @@ class Turbo1:
 
                 # Create th next batch
                 X_cand, y_cand, _ = self._create_candidates(
-                    X, fX, length=self.length, n_training_steps=self.n_training_steps, hypers={}
+                    X,
+                    fX,
+                    length=self.length,
+                    n_training_steps=self.n_training_steps,
+                    hypers={},
                 )
                 X_next = self._select_candidates(X_cand, y_cand)
 
