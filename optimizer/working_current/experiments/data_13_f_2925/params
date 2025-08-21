@@ -1,0 +1,46 @@
+nA1_range = (2.5e-7, 4.5e-7)
+nB1_range = (3, 5)
+nA2_range = (2.8e-7, 4.8e-7)
+nB2_range = (2, 4)
+nA3_range = (1.8e-7, 3.8e-7)
+nB3_range = (3, 5)
+nA4_range = (4.2e-7, 6.2e-7)
+nB4_range = (2, 4)
+nA5_range = (3.2e-7, 5.2e-7)
+nB5_range = (4, 6)
+nA6_range = (4.5e-7, 6.5e-7)
+nB6_range = (3, 5)
+nA7_range = (10e-9, 400e-9)
+nB7_range = (1, 7)
+nA8_range = (10e-9, 400e-9)
+nB8_range = (1, 7)
+nA9_range = (10e-9, 400e-9)
+nB9_range = (1, 7)
+vbiasp0_range = (0, 0.8)
+vbiasp1_range = (0.35, 0.55)
+vbiasp2_range = (0.25, 0.45)
+vbiasn0_range = (0.4, 0.6)
+vbiasn1_range = (0.2, 0.4)
+vbiasn2_range = (0.45, 0.65)
+cc_range = (1e-15, 1e-11)
+vcm = 0.40
+vdd = 0.8
+tempc = 27
+
+
+
+turbo1 = Turbo1(
+    f=f,  # Handle to objective function
+    lb=lb,  # Numpy array specifying lower bounds
+    ub=ub,  # Numpy array specifying upper bounds
+    n_init=200,  # Number of initial bounds from an Latin hypercube design
+    max_evals=1000,  # Maximum number of evaluations
+    batch_size=128,  # How large batch size TuRBO uses
+    verbose=True,  # Print information from each batch
+    use_ard=True,  # Set to true if you want to use ARD for the GP kernel
+    max_cholesky_size=2000,  # When we switch from Cholesky to Lanczos
+    n_training_steps=100,  # Number of steps of ADAM to learn the hypers
+    min_cuda=10.40,  # Run on the CPU for small datasets
+    device="cpu",  # "cpu" or "cuda"
+    dtype="float32",  # float64 or float32
+)

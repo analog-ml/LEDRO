@@ -1,10 +1,10 @@
-database_dir: "/path/to/optimizer/working_current/checkpoint/db/fully_differential_folded_cascode"
+database_dir: "/home/pham/code/analog-ml/LEDRO/optimizer/working_current/checkpoint/db/fully_differential_folded_cascode_ngspice"
 
 measurement:
   meas_params: {} # high level measurement params go here for post process
   testbenches:
     ac_dc:
-      netlist_template: "/path/to/optimizer/working_current/spectre_simulator/spectre/netlist_templates/7nm/fully_differential_folded_cascode.scs"
+      netlist_template: "/home/pham/code/analog-ml/LEDRO/optimizer/working_current/spectre_simulator/spectre/netlist_templates/7nm/fully_differential_folded_cascode_ngspice_v2.scs"
       tb_module: "spectre_simulator.spectre.meas_script.fully_differential_folded_cascode_meas_man"
       tb_class: "ACTB"
       post_process_function: "process_ac" # a class method defined in meas manager
