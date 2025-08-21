@@ -117,6 +117,7 @@ class Turbo1:
         # Save the full history
         self.X = np.zeros((0, self.dim))
         self.fX = np.zeros((0, 1))
+        self.infoX = []
 
         # Device and dtype for GPyTorch
         self.min_cuda = min_cuda
@@ -270,7 +271,16 @@ class Turbo1:
             # Generate and evalute initial design points
             X_init = latin_hypercube(self.n_init, self.dim)
             X_init = from_unit_cube(X_init, self.lb, self.ub)
-            fX_init = np.array([[self.f(x)] for x in X_init])
+
+            fX_init = []
+            infoX_init = []
+            for x in X_init:
+                reward, _spec = self.f.evaluate(x)
+                infoX_init.append(_spec)
+                fX_init.append(reward)
+
+            fX_init = np.array(fX_init).reshape(-1, 1)
+            # fX_init = np.array([[self.f(x)] for x in X_init])
 
             # Update budget and set as initial data for this TR
             self.n_evals += self.n_init
@@ -280,6 +290,7 @@ class Turbo1:
             # Append data to the global history
             self.X = np.vstack((self.X, deepcopy(X_init)))
             self.fX = np.vstack((self.fX, deepcopy(fX_init)))
+            self.infoX += deepcopy(infoX_init)
 
             if self.verbose:
                 fbest = self._fX.min()
@@ -308,7 +319,14 @@ class Turbo1:
                 X_next = from_unit_cube(X_next, self.lb, self.ub)
 
                 # Evaluate batch
-                fX_next = np.array([[self.f(x)] for x in X_next])
+                # fX_next = np.array([[self.f(x)] for x in X_next])
+                fX_next = []
+                infoX_next = []
+                for x in X_next:
+                    reward, _spec = self.f.evaluate(x)
+                    infoX_next.append(_spec)
+                    fX_next.append(reward)
+                fX_next = np.array(fX_next).reshape(-1, 1)
 
                 # Update trust region
                 self._adjust_length(fX_next)
@@ -326,3 +344,4 @@ class Turbo1:
                 # Append data to the global history
                 self.X = np.vstack((self.X, deepcopy(X_next)))
                 self.fX = np.vstack((self.fX, deepcopy(fX_next)))
+                self.infoX += deepcopy(infoX_next)
