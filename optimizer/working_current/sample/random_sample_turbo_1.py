@@ -300,6 +300,15 @@ class Levy:
         :param x: A numpy array of shape (dim,) representing the parameters to evaluate.
         :return: A float value representing the reward for the given parameters.
         """
+        reward, _ = self.evaluate(x)
+        return reward
+
+    def evaluate(self, x):
+        """
+        Evaluate the objective function for a given sample x.
+        :param x: A numpy array of shape (dim,) representing the parameters to evaluate.
+        :return: A float value representing the reward for the given parameters.
+        """
         # assert isinstance(x, np.ndarray)
         assert len(x) == self.dim
         assert x.ndim == 1
@@ -336,7 +345,7 @@ class Levy:
 
         reward1 = self.reward(cur_specs, self.specs_ideal, self.specs_id)
         logger.info(f"reward: {reward1:.3g}")
-        return reward1
+        return reward1, cur_specs
 
 
 f = Levy(17, params_id, specs_id, specs_ideal, vcm, vdd, tempc, ub, lb)
@@ -366,5 +375,7 @@ f_best, x_best = fX[ind_best], X[ind_best, :]
 
 np.save("X.npy", X)
 np.save("fX", fX)
+np.save("fSpec", turbo1.infoX)
+
 print("Optimization completed.")
 print("Best value found:\n\tf(x) = %.3f\nObserved at:\n\tx = %s" % (f_best, x_best))
