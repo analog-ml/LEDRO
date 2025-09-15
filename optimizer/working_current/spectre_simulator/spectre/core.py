@@ -604,7 +604,7 @@ def main():
     opamp_env = SpectreWrapper(tb_dict=yaml_data["measurement"]["testbenches"]["ac_dc"])
 
     data = "\nInitial Data:\nI got these points and their reward: metrics- gain:  5.77 , UGBW:  2.91e+04 , PM:  69.2 , power:  4.32e-12 with nA1: 7.45e-08, nB1: 6, nA2: 1.4e-07, nB2: 2, nA3: 3.75e-08, nB3: 3, nA4: 3.04e-07, nB4: 3, nA5: 3.72e-08, nB5: 4, nA6: 1.24e-07, nB6: 2, vbiasp1: 0.659, vbiasp2: 0.408, vbiasn0: 0.0525, vbiasn1: 0.016, vbiasn2: 0.352, vcm: 0.4, vdd: 0.8, tempc: 27 and transistor regions MM0 is in cut-off, MM1 is in cut-off, MM2 is in cut-off, MM3 is in cut-off, MM4 is in cut-off, MM5 is in cut-off, MM6 is in cut-off, MM7 is in cut-off, MM8 is in cut-off, MM9 is in cut-off, MM10 is in cut-off and reward -3.99. "
-    state = {
+    state = OrderedDict({
         "nA1": 7.45e-08,
         "nB1": 6,
         "nA2": 1.4e-07,
@@ -625,10 +625,110 @@ def main():
         "vcm": 0.4,
         "vdd": 0.8,
         "tempc": 27,
-    }
+    })
+    state, specs, info = opamp_env._create_design_and_simulate(state)
+    logger.info(state)
+    logger.info(specs)
 
-    opamp_env._create_design_and_simulate(state)
+    from sample.random_sample_turbo_1 import Levy
+    nA1_range = [10e-9, 900e-9]
+    nB1_range = [1, 7]
+    nA2_range = [10e-9, 900e-9]
+    nB2_range = [1, 7]
+    nA3_range = [10e-9, 900e-9]
+    nB3_range = [1, 7]
+    nA4_range = [10e-9, 900e-9]
+    nB4_range = [1, 7]
+    nA5_range = [10e-9, 900e-9]
+    nB5_range = [1, 7]
+    nA6_range = [10e-9, 900e-9]
+    nB6_range = [1, 7]
+    vbiasp1_range = [0.01, 0.8]
+    vbiasp2_range = [0.01, 0.8]
+    vbiasn0_range = [0.01, 0.8]
+    vbiasn1_range = [0.01, 0.8]
+    vbiasn2_range = [0.01, 0.8]
+    lb = np.array(
+    [
+        nA1_range[0],
+        nB1_range[0],
+        nA2_range[0],
+        nB2_range[0],
+        nA3_range[0],
+        nB3_range[0],
+        nA4_range[0],
+        nB4_range[0],
+        nA5_range[0],
+        nB5_range[0],
+        nA6_range[0],
+        nB6_range[0],
+        # nA7_range[0],
+        # nB7_range[0],
+        # nA8_range[0],
+        # nB8_range[0],
+        # nA9_range[0],
+        # nB9_range[0],
+        # vbiasp0_range[0],
+        vbiasp1_range[0],
+        vbiasp2_range[0],
+        vbiasn0_range[0],
+        vbiasn1_range[0],
+        vbiasn2_range[0],
+        # cc_range[0],
+    ]
+    )
+    ub = np.array(
+        [
+            nA1_range[1],
+            nB1_range[1],
+            nA2_range[1],
+            nB2_range[1],
+            nA3_range[1],
+            nB3_range[1],
+            nA4_range[1],
+            nB4_range[1],
+            nA5_range[1],
+            nB5_range[1],
+            nA6_range[1],
+            nB6_range[1],
+            # nA7_range[1],
+            # nB7_range[1],
+            # nA8_range[1],
+            # nB8_range[1],
+            # nA9_range[1],
+            # nB9_range[1],
+            # vbiasp0_range[1],
+            vbiasp1_range[1],
+            vbiasp2_range[1],
+            vbiasn0_range[1],
+            vbiasn1_range[1],
+            vbiasn2_range[1],
+            # cc_range[1]
+        ]
+    )
+    vcm = 0.40
+    vdd = 0.8
+    tempc = 27
+    CIR_YAML = (
+        "spectre_simulator/spectre/specs_list_read/fully_differential_folded_cascode.yaml"
+    )
+    with open(CIR_YAML, "r") as f:
+        yaml_data = yaml.load(f, OrderedDictYAMLLoader)
+    f.close()
+    params = yaml_data["params"]
+    specs = yaml_data["target_spec"]
+    specs_ideal = []
+    for spec in list(specs.values()):
+        specs_ideal.append(spec)
+    specs_ideal = np.array(specs_ideal)
+    params_id = list(params.keys())
+    specs_id = list(specs.keys())    
+    f = Levy(17, params_id, specs_id, specs_ideal, vcm, vdd, tempc, ub, lb)
 
+    # print (f())
+    x = list(state.values())[:-3]
+    x = np.array(x).reshape(-1)
+    print (f.evaluate(x))
 
 if __name__ == "__main__":
     main()
