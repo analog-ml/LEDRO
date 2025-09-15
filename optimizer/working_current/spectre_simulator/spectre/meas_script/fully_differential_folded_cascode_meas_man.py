@@ -116,7 +116,7 @@ class ACTB(object):
 
         # this condition will be used!
         if globalsy.counterrrr < 200:
-            f = open("out1.txt", "a")
+            f = open("simulation_metrics.log", "a")
             print(
                 "metrics-",
                 "gain: ",
