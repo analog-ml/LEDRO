@@ -4,6 +4,8 @@ from collections import OrderedDict
 from scipy.signal import savgol_filter  # <-- Add this import
 import pickle
 
+from torch.utils.tensorboard import SummaryWriter
+import numpy as np
 
 # =====================
 # Load optimization results
@@ -66,6 +68,11 @@ best_specs = obtain_spec(x_best)
 print("Best specs obtained:", best_specs)
 
 
+tb_name = input("Enter tensorboard log name (e.g., runs/exp1): ")
+tb_name = tb_name.strip().replace(" ", "_")
+writer = SummaryWriter(tb_name)
+
+
 def plot_optimization_results(X, fX, fSpec):
     gains = [fSpec[i][0] for i in range(len(fSpec))]
     funities = [fSpec[i][1] for i in range(len(fSpec))]
@@ -108,6 +115,14 @@ def plot_optimization_results(X, fX, fSpec):
 
     plt.tight_layout()
     plt.savefig("optimization_results.png")
+
+    for i in range(len(gains)):
+        writer.add_scalar("Gain", gains[i], i)
+        writer.add_scalar("UGBW", funities[i], i)
+        writer.add_scalar("PM", pm[i], i)
+        writer.add_scalar("Power", power[i], i)
+        writer.add_scalar("FoM", -1.0 * fX[i], i)
+        writer.add_scalar("FoM-org", -1.0 * original_FoM[i], i)
 
 
 def plot_optimization_results2(
