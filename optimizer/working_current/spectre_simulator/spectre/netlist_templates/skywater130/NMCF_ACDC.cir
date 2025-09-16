@@ -1,0 +1,108 @@
+Test OpAmp ACDC
+
+*.OPTIONS RELTOL=.0001
+***************************************
+* Step 1: Replace circuit netlist here.
+*************************************** 
+.subckt Leung_NMCF_Pin_3 gnda vdda vinn vinp vout Ib
+XM11 vout net050 vdda vdda sky130_fd_pr__pfet_01v8 l=mosfet_11_1_l_gmf2_pmos w='mosfet_11_1_w_gmf2_pmos*1'  m=mosfet_11_1_m_gmf2_pmos   
+XM7 net049 Ib vdda vdda sky130_fd_pr__pfet_01v8 l=mosfet_0_8_l_biascm_pmos w='mosfet_0_8_w_biascm_pmos*1'  m=mosfet_0_8_m_biascm_pmos  
+XM10 net043 net050 vdda vdda sky130_fd_pr__pfet_01v8 l=mosfet_10_1_l_gm2_pmos w='mosfet_10_1_w_gm2_pmos*1'  m=mosfet_10_1_m_gm2_pmos 
+XM6 net050 voutn vdda vdda sky130_fd_pr__pfet_01v8 l=mosfet_0_8_l_biascm_pmos w='mosfet_0_8_w_biascm_pmos*1'  m=mosfet_0_8_m_biascm_pmos 
+XM5 voutn voutn vdda vdda sky130_fd_pr__pfet_01v8 l=mosfet_0_8_l_biascm_pmos w='mosfet_0_8_w_biascm_pmos*1'  m=mosfet_0_8_m_biascm_pmos   
+XM9 net063 vinp net31 net31 sky130_fd_pr__pfet_01v8 l=mosfet_8_2_l_gm1_pmos w='mosfet_8_2_w_gm1_pmos*1'  m=mosfet_8_2_m_gm1_pmos  
+XM8 dm_2 vinn net31 net31 sky130_fd_pr__pfet_01v8 l=mosfet_8_2_l_gm1_pmos w='mosfet_8_2_w_gm1_pmos*1'  m=mosfet_8_2_m_gm1_pmos  
+XM4 net31 Ib vdda vdda sky130_fd_pr__pfet_01v8 l=mosfet_0_8_l_biascm_pmos w='mosfet_0_8_w_biascm_pmos*1'  m='4*mosfet_0_8_m_biascm_pmos'  
+XM3 vb3 Ib vdda vdda sky130_fd_pr__pfet_01v8 l=mosfet_0_8_l_biascm_pmos w='mosfet_0_8_w_biascm_pmos*1'  m=mosfet_0_8_m_biascm_pmos   
+XM2 dm_1 Ib vdda vdda sky130_fd_pr__pfet_01v8 l=mosfet_0_8_l_biascm_pmos w='mosfet_0_8_w_biascm_pmos*1'  m=mosfet_0_8_m_biascm_pmos  
+XM1 vb4 Ib vdda vdda sky130_fd_pr__pfet_01v8 l=mosfet_0_8_l_biascm_pmos w='mosfet_0_8_w_biascm_pmos*1'  m=mosfet_0_8_m_biascm_pmos  
+XM0 Ib Ib vdda vdda sky130_fd_pr__pfet_01v8 l=mosfet_0_8_l_biascm_pmos w='mosfet_0_8_w_biascm_pmos*1'  m=mosfet_0_8_m_biascm_pmos   
+XM23 vout net049 gnda gnda sky130_fd_pr__nfet_01v8 l=mosfet_23_1_l_gm3_nmos w='mosfet_23_1_w_gm3_nmos*1'  m=mosfet_23_1_m_gm3_nmos  
+XM22 net049 net043 gnda gnda sky130_fd_pr__nfet_01v8 l=mosfet_21_2_l_load2_nmos w='mosfet_21_2_w_load2_nmos*1'  m=mosfet_21_2_m_load2_nmos   
+XM21 net043 net043 gnda gnda sky130_fd_pr__nfet_01v8 l=mosfet_21_2_l_load2_nmos w='mosfet_21_2_w_load2_nmos*1'  m=mosfet_21_2_m_load2_nmos   
+XM19 dm_2 vb4 gnda gnda sky130_fd_pr__nfet_01v8 l=mosfet_17_7_l_biascm_nmos w='mosfet_17_7_w_biascm_nmos*1'  m='mosfet_17_7_m_biascm_nmos*8'  
+XM15 voutn vb3 dm_2 gnda sky130_fd_pr__nfet_01v8 l=mosfet_17_7_l_biascm_nmos w='mosfet_17_7_w_biascm_nmos*1'  m='mosfet_17_7_m_biascm_nmos*4'   
+XM20 net063 vb4 gnda gnda sky130_fd_pr__nfet_01v8 l=mosfet_17_7_l_biascm_nmos w='mosfet_17_7_w_biascm_nmos*1'  m='mosfet_17_7_m_biascm_nmos*8'  
+XM16 net050 vb3 net063 gnda sky130_fd_pr__nfet_01v8 l=mosfet_17_7_l_biascm_nmos w='mosfet_17_7_w_biascm_nmos*1'  m='mosfet_17_7_m_biascm_nmos*4'
+XM17 net54 vb4 gnda gnda sky130_fd_pr__nfet_01v8 l=mosfet_17_7_l_biascm_nmos w='mosfet_17_7_w_biascm_nmos*1'  m='mosfet_17_7_m_biascm_nmos*4'   
+XM14 vb3 vb3 gnda gnda sky130_fd_pr__nfet_01v8 l=mosfet_17_7_l_biascm_nmos w='mosfet_17_7_w_biascm_nmos*1'  m=mosfet_17_7_m_biascm_nmos  
+XM12 vb4 vb3 net54 gnda sky130_fd_pr__nfet_01v8 l=mosfet_17_7_l_biascm_nmos w='mosfet_17_7_w_biascm_nmos*1'  m='mosfet_17_7_m_biascm_nmos*4'  
+XM18 net56 vb4 gnda gnda sky130_fd_pr__nfet_01v8 l=mosfet_17_7_l_biascm_nmos w='mosfet_17_7_w_biascm_nmos*1'  m='mosfet_17_7_m_biascm_nmos*4'   
+XM13 dm_1 vb3 net56 gnda sky130_fd_pr__nfet_01v8 l=mosfet_17_7_l_biascm_nmos w='mosfet_17_7_w_biascm_nmos*1'  m='mosfet_17_7_m_biascm_nmos*4'   
+XC0 net050 vout sky130_fd_pr__cap_mim_m3_1 W=30 L=30 MF=M_C0 m=M_C0
+XC1 net049 vout sky130_fd_pr__cap_mim_m3_1 W=30 L=30 MF=M_C1 m=M_C1
+.ends Leung_NMCF_Pin_3
+
+.param mc_mm_switch=0
+.param mc_pr_switch=0
+.include /home/pham/shared_files/sky130_pdk/libs.tech/ngspice/corners/tt.spice
+.include /home/pham/shared_files/sky130_pdk/libs.tech/ngspice/r+c/res_typical__cap_typical.spice
+.include /home/pham/shared_files/sky130_pdk/libs.tech/ngspice/r+c/res_typical__cap_typical__lin.spice
+.include /home/pham/shared_files/sky130_pdk/libs.tech/ngspice/corners/tt/specialized_cells.spice
+
+***************************************
+* Step 2: Replace circuit param.  here.
+*************************************** 
+.PARAM supply_voltage = 1.8
+.PARAM VCM_ratio = 0.4
+.PARAM PARAM_CLOAD =10.00p 
+
+.param MOSFET_0_8_W_BIASCM_PMOS=8.401687951475711 MOSFET_0_8_L_BIASCM_PMOS=1.8753550832847838 MOSFET_0_8_M_BIASCM_PMOS=19
+.param MOSFET_8_2_W_gm1_PMOS=1.3222527842051277 MOSFET_8_2_L_gm1_PMOS=2.6270257845071705 MOSFET_8_2_M_gm1_PMOS=37
+.param MOSFET_10_1_W_gm2_PMOS=1.710426467813417 MOSFET_10_1_L_gm2_PMOS=1.8154329552478603 MOSFET_10_1_M_gm2_PMOS=4
+.param MOSFET_11_1_W_gmf2_PMOS=3.578620867067523 MOSFET_11_1_L_gmf2_PMOS=3.581661795317242 MOSFET_11_1_M_gmf2_PMOS=347
+.param MOSFET_17_7_W_BIASCM_NMOS=1.4611546975877676 MOSFET_17_7_L_BIASCM_NMOS=0.9503514834662219 MOSFET_17_7_M_BIASCM_NMOS=4
+.param MOSFET_21_2_W_LOAD2_NMOS=5.923108683557338 MOSFET_21_2_L_LOAD2_NMOS=1.3873797864025055 MOSFET_21_2_M_LOAD2_NMOS=42
+.param MOSFET_23_1_W_gm3_NMOS=1.2341762562343073 MOSFET_23_1_L_gm3_NMOS=2.38420311655875 MOSFET_23_1_M_gm3_NMOS=9
+.param CURRENT_0_BIAS=5.245106465782526e-06
+.param M_C0=21
+.param M_C1=8
+
+
+
+V1 vdd 0 'supply_voltage'
+V2 vss 0 0 
+
+Vindc opin 0 'supply_voltage*VCM_ratio'
+Vin signal_in 0 dc 'supply_voltage*VCM_ratio' ac 1 sin('supply_voltage*VCM_ratio' 100m 500)
+
+Lfb opout opout_dc 1T
+Cin opout_dc signal_in 1T
+
+* Circuit List:
+* Leung_NMCNR_Pin_3
+
+
+* XOP gnda vdda vinn vinp vout
+*        |  |     |     |   |
+*        |  |     |     |   Output
+*        |  |     |     Non-inverting Input
+*        |  |      Inverting Input
+*        |  Positive Supply
+*        Negative Supply 
+
+***************************************
+* Step 3: Replace circuit name below.
+* e.g. Leung_NMCNR_Pin_3 -> Leung_NMCF_Pin_3
+*************************************** 
+*    ADM TB 
+Ib Ib gnda DC='current_0_bias'
+x1 vss vdd opout_dc opin opout Ib Leung_NMCF_Pin_3
+Cload1 opout 0 'PARAM_CLOAD'
+
+
+
+.ac dec 10 1 10G
+
+.control
+run
+set units=degrees
+set wr_vecnames
+option numdgt=7
+wrdata ac.csv v(opout)
+op
+wrdata dc.csv i(V1)
+.endc
+
+
+.end
