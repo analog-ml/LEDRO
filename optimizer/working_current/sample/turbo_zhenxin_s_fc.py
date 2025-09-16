@@ -1,22 +1,15 @@
 import numpy as np
-from collections import OrderedDict
 import yaml
 import yaml.constructor
-
-from turbo.turbo import Turbo1
-from turbo.turbo import TurboM
-import numpy as np
-import torch
-import math
-import matplotlib
-import matplotlib.pyplot as plt
-import globalsy
-from spectre_simulator.spectre.meas_script.Zhenxin_S_FC_meas import *
-
-
 import sys
 import os
+import numpy as np
+import pickle
+
 from loguru import logger
+from collections import OrderedDict
+from turbo.turbo import Turbo1
+from spectre_simulator.spectre.meas_script.Zhenxin_S_FC_meas import *
 
 logger.remove()
 log_level = "DEBUG"
@@ -91,11 +84,6 @@ class OrderedDictYAMLLoader(yaml.Loader):
         return mapping
 
 
-
-
-
-
-
 w_m12_range = [130, 100000]
 w_m3_range = [50, 100000]
 w_m45_range = [130, 100000]
@@ -109,46 +97,39 @@ vbn2_range = [0.0001, 1.1]
 cc_range = [0.01, 10]
 
 lb = np.array(
-[
-    w_m12_range[0],
-    w_m3_range[0],
-    w_m45_range[0],
-    w_m67_range[0],
-    w_m89_range[0],
-    w_m1011_range[0],
-    vbp1_range[0],
-    vbp2_range[0],
-    vbn1_range[0],
-    vbn2_range[0],
-    cc_range[0]
-]
+    [
+        w_m12_range[0],
+        w_m3_range[0],
+        w_m45_range[0],
+        w_m67_range[0],
+        w_m89_range[0],
+        w_m1011_range[0],
+        vbp1_range[0],
+        vbp2_range[0],
+        vbn1_range[0],
+        vbn2_range[0],
+        cc_range[0],
+    ]
 )
 ub = np.array(
     [
-    w_m12_range[1],
-    w_m3_range[1],
-    w_m45_range[1],
-    w_m67_range[1],
-    w_m89_range[1],
-    w_m1011_range[1],
-    vbp1_range[1],
-    vbp2_range[1],
-    vbn1_range[1],
-    vbn2_range[1],
-    cc_range[1]
+        w_m12_range[1],
+        w_m3_range[1],
+        w_m45_range[1],
+        w_m67_range[1],
+        w_m89_range[1],
+        w_m1011_range[1],
+        vbp1_range[1],
+        vbp2_range[1],
+        vbn1_range[1],
+        vbn2_range[1],
+        cc_range[1],
     ]
 )
 
 
-
-
-
-
-
 # Get a random sample
-CIR_YAML = (
-    "spectre_simulator/spectre/specs_list_read/Zhenxin_S_FC.yaml"
-)
+CIR_YAML = "spectre_simulator/spectre/specs_list_read/Zhenxin_S_FC.yaml"
 with open(CIR_YAML, "r") as f:
     yaml_data = yaml.load(f, OrderedDictYAMLLoader)
 f.close()
@@ -191,6 +172,10 @@ class Levy:
         self.ub = ub
         self.lb = lb
 
+        self.reward_idx = 1
+        self.last_change = 0
+        self.last_params = None
+
     def lookup(self, spec: list[float], goal_spec: list[float]) -> np.ndarray:
         """
         Normalize the specifications based on their ideal values.
@@ -228,7 +213,7 @@ class Levy:
         # assert isinstance(spec, list)
         # assert isinstance(goal_spec, list)
         # assert isinstance(specs_id, list)
-        logger.debug (f"current spec: {spec}")
+        logger.debug(f"current spec: {spec}")
         if len(spec) != len(goal_spec) or len(spec) != len(specs_id):
             raise ValueError("spec, goal_spec, and specs_id must have the same length")
 
@@ -236,17 +221,43 @@ class Levy:
 
         # pay attention to reward calculation, this is not quite the reward function in RL
         # but rather a penalty value for the optimization process
-        reward = 0
-        for i, rel_spec in enumerate(norm_specs):
-            # For power,  smaller is better
-            # For gain, larger (compared to the target/goal) is better
-            # For other specs (pm, ugbw, etc.), smaller is better
-            if specs_id[i] == "power" and rel_spec > 0:
-                reward += np.abs(rel_spec)  # /10
-            elif specs_id[i] == "gain" and rel_spec < 0:
-                reward += 3 * np.abs(rel_spec)  # /10
-            elif specs_id[i] != "power" and rel_spec < 0:
-                reward += np.abs(rel_spec)
+
+        def calc_reward(w):
+            # w = [1, 1, 1, 1] # weights for gain, power, pm, ugbw
+
+            reward = 0
+            for i, rel_spec in enumerate(norm_specs):
+                if specs_id[i] == "power" and rel_spec > 0:
+                    reward += w[1] * np.abs(rel_spec)
+                elif specs_id[i] == "gain" and rel_spec < 0:
+                    reward += w[0] * np.abs(rel_spec)
+                elif specs_id[i] == "funity" and rel_spec < 0:
+                    reward += w[-1] * np.abs(rel_spec)
+                elif specs_id[i] == "pm" and rel_spec < 0:
+                    reward += w[-2] * np.abs(rel_spec)
+            return reward
+
+        self.ret_reward_0 = calc_reward([1, 1, 1, 1])
+        self.ret_reward_1 = calc_reward([0.22, 0.15, 0.13, 0.50])
+        self.ret_reward_2 = calc_reward([0.34, 0.24, 0.12, 0.30])
+        self.ret_reward_3 = calc_reward([0.40, 0.30, 0.15, 0.15])
+        self.ret_reward_4 = calc_reward([0.30, 0.40, 0.20, 0.10])
+        self.ret_reward_5 = calc_reward([0.22, 0.30, 0.40, 0.08])
+        self.ret_reward_6 = calc_reward([0.18, 0.18, 0.24, 0.40])
+        self.ret_reward_7 = calc_reward([0.25, 0.25, 0.25, 0.25])
+
+        reward_map = {
+            0: self.ret_reward_0,
+            1: self.ret_reward_1,
+            2: self.ret_reward_2,
+            3: self.ret_reward_3,
+            4: self.ret_reward_4,
+            5: self.ret_reward_5,
+            6: self.ret_reward_6,
+            7: self.ret_reward_7,
+        }
+
+        reward = reward_map[self.reward_idx]
 
         logger.debug(
             f"reward: {reward:.3g} for specs: {spec} and ideal specs: {goal_spec}"
@@ -271,6 +282,72 @@ class Levy:
         assert len(x) == self.dim
         assert x.ndim == 1
         assert np.all(x <= self.ub) and np.all(x >= self.lb)
+
+        if self.last_change < 40_000:
+            self.last_change = self.last_change + 1
+        else:
+            if self.reward_idx == 1 and self.cur_specs[1] < 12e-3:
+                self.reward_idx = 2
+                self.last_change = 0
+
+            elif self.reward_idx == 2 and self.cur_specs[0] > 565:
+                self.reward_idx = 3
+                self.last_change = 0
+
+            elif self.reward_idx == 3 and self.cur_specs[0] > 800:
+                self.reward_idx = 4
+                self.last_change = 0
+
+            elif self.reward_idx == 4 and self.cur_specs[-1] > 5.0e-6:
+                self.reward_idx = 5
+                self.last_change = 0
+
+            elif self.reward_idx == 5 and self.cur_specs[-2] > 60.0:
+                self.reward_idx = 6
+                self.last_change = 0
+            elif self.reward_idx == 6 and self.cur_specs[1] < 10e-3:
+                self.reward_idx = 7
+                self.last_change = 0
+
+        # IMPORTANT: comment out the following lines if you don't want to use adaptive reward function during optimization
+        self.reward_idx = 0
+        self.last_params = None
+
+        if self.last_params is None:
+            self.last_params = np.copy(x)
+
+        if self.reward_idx == 1:
+            x[1] = self.last_params[1]
+            x[5] = self.last_params[5]
+
+        if self.reward_idx == 2:
+            x[0] = self.last_params[0]
+            x[1] = self.last_params[1]
+
+        if self.reward_idx == 3:
+            x[0] = self.last_params[0]
+            x[1] = self.last_params[1]
+
+        if self.reward_idx == 4:
+            x[2] = self.last_params[2]
+            x[3] = self.last_params[3]
+            x[4] = self.last_params[4]
+
+        if self.reward_idx == 5:
+            x[2] = self.last_params[2]
+            x[3] = self.last_params[3]
+            x[4] = self.last_params[4]
+
+        if self.reward_idx == 6:
+            x[1] = self.last_params[1]
+            x[5] = self.last_params[5]
+
+        if self.reward_idx == 7:
+            x[2] = self.last_params[2]
+            x[3] = self.last_params[3]
+            x[4] = self.last_params[4]
+
+        self.last_params = np.copy(x)
 
         CIR_YAML = "spectre_simulator/spectre/specs_list_read/Zhenxin_S_FC.yaml"
         sim_env = OpampMeasMan(CIR_YAML)
@@ -316,9 +393,10 @@ class Levy:
         logger.debug(
             f"Reward: {reward1:.3g} for sample: {sample} with specs: {cur_specs}"
         )
-        return reward1, cur_specs
+        return reward1, {"cur_specs": cur_specs, "original_reward": self.ret_reward_0}
 
-if __name__ =="__main__":
+
+if __name__ == "__main__":
     if os.path.exists("performance+deviceparams.log"):
         os.remove("performance+deviceparams.log")
     f = Levy(11, params_id, specs_id, specs_ideal, ub, lb)
@@ -348,7 +426,9 @@ if __name__ =="__main__":
 
     np.save("X.npy", X)
     np.save("fX", fX)
-    np.save("fSpec", turbo1.infoX)
+    # np.save("fSpec", turbo1.infoX)
+    with open("simulation.dat", "wb") as f:
+        pickle.dump(turbo1.infoX, f)
 
     print("Optimization completed.")
     print("Best value found:\n\tf(x) = %.3f\nObserved at:\n\tx = %s" % (f_best, x_best))
