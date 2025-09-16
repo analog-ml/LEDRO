@@ -1,0 +1,39 @@
+database_dir: "/home/pham/code/analog-ml/LEDRO/optimizer/working_current/checkpoint/db/fully_differential_folded_cascode_ngspice"
+
+measurement:
+  meas_params: {} # high level measurement params go here for post process
+  testbenches:
+    ac_dc:
+      netlist_template: "/home/pham/code/analog-ml/LEDRO/optimizer/working_current/spectre_simulator/spectre/netlist_templates/65nm/Zhenxin_S_FC.cir"
+      tb_module: "spectre_simulator.spectre.meas_script.Zhenxin_S_FC_meas"
+      tb_class: "ACTB"
+      post_process_function: "process_ac" # a class method defined in meas manager
+      tb_params: {} # lower level params for tb evaluation goes here
+
+params:
+  w_m12: !!python/tuple [130, 100000, 1000] # min, max, num_points (however, num_points is ignored in BO)
+  w_m3: !!python/tuple [130, 100000, 1000]
+  w_m45: !!python/tuple [130, 100000, 1000]
+  w_m67: !!python/tuple [130, 100000, 1000]
+  w_m89: !!python/tuple [130, 100000, 1000]
+  w_m1011: !!python/tuple [130, 100000, 1000]
+  vbp1: !!python/tuple [!!float 0.0001, !!float 1.1, 20]
+  vbp2: !!python/tuple [!!float 0.0001, !!float 1.1, 20]
+  vbn1: !!python/tuple [!!float 0.0001, !!float 1.1, 20]
+  vbn2: !!python/tuple [!!float 0.0001, !!float 1.1, 20]
+  cc: !!python/tuple [!!float 0.01, !!float 10, 20]
+
+spec_range:
+  gain: [!!float 1, null, 1]
+  funity: [!!float 3.0e+5, null, 1]
+  pm: [60.0, null, 1]
+
+normalize: !!python/tuple [!!float 5.0e+6,900,!!float 10e-3,60]
+
+target_spec:
+  gain: !!python/tuple [1000]
+  funity: !!python/tuple [!!float 5.0e+6]
+  pm: !!python/tuple [60]
+  power: !!python/tuple [10e-3]
+
+
