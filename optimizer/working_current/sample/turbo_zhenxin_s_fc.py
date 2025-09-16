@@ -300,7 +300,7 @@ class Levy:
         else:
             print("self.cur_specs is None......................")
 
-        if self.last_change < 10:
+        if self.last_change <= 5:
             self.last_change = self.last_change + 1
         else:
             if self.reward_idx == 1 and gain > 700:
