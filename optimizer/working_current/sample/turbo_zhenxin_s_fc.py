@@ -175,6 +175,7 @@ class Levy:
         self.reward_idx = 1
         self.last_change = 0
         self.last_params = None
+        self.cur_specs = None
 
     def lookup(self, spec: list[float], goal_spec: list[float]) -> np.ndarray:
         """
@@ -283,75 +284,150 @@ class Levy:
         assert x.ndim == 1
         assert np.all(x <= self.ub) and np.all(x >= self.lb)
 
-        if self.last_change < 40_000:
+        # cur_specs (gain, ugbw, pm, power)
+        if self.cur_specs is not None:
+            gain = self.cur_specs[0]
+            ugbw = self.cur_specs[1]
+            pm = self.cur_specs[2]
+            power = self.cur_specs[3]
+            # print("gain, ugbw, pm, power", gain, ugbw, pm, power)
+            # exit()
+        else:
+            print("self.cur_specs is None......................")
+
+        if self.last_change < 5:
             self.last_change = self.last_change + 1
         else:
-            if self.reward_idx == 1 and self.cur_specs[1] < 12e-3:
+            # if self.reward_idx == 1 and gain > 900:
+            #     self.reward_idx = 2
+            #     self.last_change = 0
+
+            # elif self.reward_idx == 2 and ugbw > 6.0e7:
+            #     self.reward_idx = 3
+            #     self.last_change = 0
+
+            # elif self.reward_idx == 3 and power < 1.2e-4:
+            #     self.reward_idx = 4
+            #     self.last_change = 0
+
+            # elif self.reward_idx == 4 and pm > 55:
+            #     self.reward_idx = 5
+            #     self.last_change = 0
+
+            # elif self.reward_idx == 5 and pm > 60:
+            #     self.reward_idx = 6
+            #     self.last_change = 0
+            # elif self.reward_idx == 6 and gain > 1500:
+            #     self.reward_idx = 7
+            #     self.last_change = 0
+            #
+            if self.reward_idx == 1 and power < 12e-3:
                 self.reward_idx = 2
                 self.last_change = 0
 
-            elif self.reward_idx == 2 and self.cur_specs[0] > 565:
+            elif self.reward_idx == 2 and gain > 565:
                 self.reward_idx = 3
                 self.last_change = 0
 
-            elif self.reward_idx == 3 and self.cur_specs[0] > 800:
+            elif self.reward_idx == 3 and gain > 800:
                 self.reward_idx = 4
                 self.last_change = 0
 
-            elif self.reward_idx == 4 and self.cur_specs[-1] > 5.0e-6:
+            elif self.reward_idx == 4 and ugbw > 5.0e-6:
                 self.reward_idx = 5
                 self.last_change = 0
 
-            elif self.reward_idx == 5 and self.cur_specs[-2] > 60.0:
+            elif self.reward_idx == 5 and pm > 60.0:
                 self.reward_idx = 6
                 self.last_change = 0
-            elif self.reward_idx == 6 and self.cur_specs[1] < 10e-3:
+            elif self.reward_idx == 6 and power <= 10e-3:
                 self.reward_idx = 7
                 self.last_change = 0
 
         # IMPORTANT: comment out the following lines if you don't want to use adaptive reward function during optimization
-        self.reward_idx = 0
-        self.last_params = None
+        # self.reward_idx = 0
+        # self.last_params = None
 
         if self.last_params is None:
             self.last_params = np.copy(x)
 
+        # [2,2]
+        names = [
+            "w_m12",  # 0
+            "w_m3",  # 1
+            "w_m45",  # 2
+            "w_m67",  # 3
+            "w_m89",  # 4
+            "w_m1011",  # 5
+            "vbp1",  # 6
+            "vbp2",  # 7
+            "vbn1",  # 8
+            "vbn2",  # 9
+            "cc",  # 10
+        ]
+        new_x = np.copy(x)
+        """
         if self.reward_idx == 1:
-            x[1] = self.last_params[1]
-            x[5] = self.last_params[5]
+            keeps = [1, 5]
+            for idx, val in enumerate(x):
+                if idx not in keeps:
+                    new_x[idx] = self.last_params[idx]
+                else:
+                    new_x[idx] = val
 
         if self.reward_idx == 2:
-            x[0] = self.last_params[0]
-            x[1] = self.last_params[1]
+            keeps = [0, 1]
+            for idx, val in enumerate(x):
+                if idx not in keeps:
+                    new_x[idx] = self.last_params[idx]
+                else:
+                    new_x[idx] = val
 
         if self.reward_idx == 3:
-            x[0] = self.last_params[0]
-            x[1] = self.last_params[1]
+            keeps = [0, 1]
+            for idx, val in enumerate(x):
+                if idx not in keeps:
+                    new_x[idx] = self.last_params[idx]
+                else:
+                    new_x[idx] = val
 
         if self.reward_idx == 4:
-            x[2] = self.last_params[2]
-            x[3] = self.last_params[3]
-            x[4] = self.last_params[4]
+            keeps = [2, 3, 4]
+            for idx, val in enumerate(x):
+                if idx not in keeps:
+                    new_x[idx] = self.last_params[idx]
+                else:
+                    new_x[idx] = val
 
         if self.reward_idx == 5:
-            x[2] = self.last_params[2]
-            x[3] = self.last_params[3]
-            x[4] = self.last_params[4]
+            keeps = [2, 3, 4]
+            for idx, val in enumerate(x):
+                if idx not in keeps:
+                    new_x[idx] = self.last_params[idx]
+                else:
+                    new_x[idx] = val
 
         if self.reward_idx == 6:
-            x[1] = self.last_params[1]
-            x[5] = self.last_params[5]
+            keeps = [1, 5]
+            for idx, val in enumerate(x):
+                if idx not in keeps:
+                    new_x[idx] = self.last_params[idx]
+                else:
+                    new_x[idx] = val
 
         if self.reward_idx == 7:
-            x[2] = self.last_params[2]
-            x[3] = self.last_params[3]
-            x[4] = self.last_params[4]
-
-        self.last_params = np.copy(x)
+            keeps = [2, 3, 4]
+            for idx, val in enumerate(x):
+                if idx not in keeps:
+                    new_x[idx] = self.last_params[idx]
+                else:
+                    new_x[idx] = val
+        """
+        self.last_params = np.copy(new_x)
 
         CIR_YAML = "spectre_simulator/spectre/specs_list_read/Zhenxin_S_FC.yaml"
         sim_env = OpampMeasMan(CIR_YAML)
-        sample = x
+        sample = new_x
         param_val = [OrderedDict(list(zip(self.params_id, sample)))]
 
         cur_specs = OrderedDict(
@@ -373,6 +449,9 @@ class Levy:
         dummy = cur_specs[0]
         cur_specs[0] = cur_specs[1]
         cur_specs[1] = dummy
+
+        self.cur_specs = np.copy(cur_specs)
+
         # f = open("/path/to/optimizer/out1.txt",'a')
         # print("cur_specs", cur_specs, file=f)
         reward1 = self.reward(cur_specs, self.specs_ideal, self.specs_id)
