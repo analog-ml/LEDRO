@@ -1,5 +1,8 @@
 import numpy as np
+import matplotlib.pyplot as plt
 from collections import OrderedDict
+from scipy.signal import savgol_filter  # <-- Add this import
+import pickle
 
 
 # =====================
@@ -8,8 +11,19 @@ from collections import OrderedDict
 # Assuming fX and X are numpy arrays saved in the current directory
 # If they are not, adjust the paths accordingly
 fX = np.load("fX.npy")
-fSpec = np.load("fSpec.npy")
+# fSpec = np.load("fSpec.npy")
 X = np.load("X.npy")
+with open('simulation.dat', 'rb') as f:
+    loaded_dict = pickle.load(f)
+    fSpec = [d['cur_specs'] for d in loaded_dict]
+    original_FoM = [d['original_reward'] for d in loaded_dict]
+
+original_FoM = np.array(original_FoM)
+# print (fSpec)
+# exit()
+# print (fX)
+# print(original_FoM)
+# exit()
 
 ind_best = np.argmin(fX)
 f_best, x_best = fX[ind_best], X[ind_best, :]
@@ -28,20 +42,6 @@ sim_env = OpampMeasMan(CIR_YAML)
 
 
 def obtain_spec(x):
-    sample = x
-    # sample[1] = round(sample[1])
-    # sample[3] = round(sample[3])
-    # sample[5] = round(sample[5])
-    # sample[7] = round(sample[7])
-    # sample[9] = round(sample[9])
-    # sample[11] = round(sample[11])
-    # # sample[13] = round(sample[13])
-    # # sample[15] = round(sample[15])
-    # # sample[17] = round(sample[17])
-    # sample = np.append(sample, 0.4)
-    # sample = np.append(sample, 0.8)
-    # sample = np.append(sample, 27)
-
     params_id = [
             "w_m12",
             "w_m3", 
@@ -55,13 +55,11 @@ def obtain_spec(x):
             "vbn2",
             "cc"
     ]
-    param_val = [OrderedDict(list(zip(params_id, sample)))]
+    param_val = [OrderedDict(list(zip(params_id, x)))]
     cur_specs = OrderedDict(
         sorted(sim_env.evaluate(param_val)[0][1].items(), key=lambda k: k[0])
     )
-    # print("Current specs:")
-    cur_specs = dict(cur_specs)  # Convert OrderedDict to dict for easier printing
-    # print(cur_specs)
+    cur_specs = dict(cur_specs)  
     return cur_specs
 
 
@@ -69,16 +67,18 @@ print("Obtaining specs for the best sample...")
 best_specs = obtain_spec(x_best)
 print("Best specs obtained:", best_specs)
 
-import matplotlib.pyplot as plt
 
 
 def plot_optimization_results(X, fX, fSpec):
     gains = [fSpec[i][0] for i in range(len(fSpec))]
     funities = [fSpec[i][1] for i in range(len(fSpec))]
+    pm = [fSpec[i][2] for i in range(len(fSpec))]
+    power = [fSpec[i][3] for i in range(len(fSpec))]
+    
 
     indices = np.arange(len(X))
 
-    fig, axs = plt.subplots(3, 1, figsize=(10, 12), sharex=True)
+    fig, axs = plt.subplots(5, 1, figsize=(10, 12), sharex=True)
 
     axs[0].plot(indices, gains, label="Gain")
     axs[0].set_ylabel("Gain")
@@ -90,19 +90,29 @@ def plot_optimization_results(X, fX, fSpec):
     axs[1].set_title("Funity vs. Iteration")
     axs[1].legend()
 
-    axs[2].plot(indices, -1.0 * fX, label="FoM", color="green")
-    axs[2].set_ylabel("FoM")
-    axs[2].set_title("FoM vs. Iteration")
-    axs[2].set_xlabel("Iteration")
+    axs[2].plot(indices, pm, label="PM", color="red")
+    axs[2].set_ylabel("PM")
+    axs[2].set_title("PM vs. Iteration")
     axs[2].legend()
+
+
+    axs[3].plot(indices, power, label="Power", color="blue")
+    axs[3].set_ylabel("Power")
+    axs[3].set_title("Power vs. Iteration")
+    axs[3].legend()
+
+    axs[4].plot(indices, -1.0 * fX, label="FoM", color="green")
+    axs[4].plot(indices, -1.0 * original_FoM, label="FoM-org", color="purple")#, linestyle='dashed')
+
+    axs[4].set_ylabel("FoM")
+    axs[4].set_title("FoM vs. Iteration")
+    axs[4].set_xlabel("Iteration")
+    axs[4].legend()
 
     plt.tight_layout()
     plt.savefig("optimization_results.png")
-    # plt.show()
 
 
-plot_optimization_results(X, fX, fSpec)
-from scipy.signal import savgol_filter  # <-- Add this import
 
 
 def plot_optimization_results2(
@@ -110,7 +120,12 @@ def plot_optimization_results2(
 ):
     gains = [fSpec[i][0] for i in range(len(fSpec))]
     funities = [fSpec[i][1] for i in range(len(fSpec))]
+    pm = [fSpec[i][2] for i in range(len(fSpec))]
+    power = [fSpec[i][3] for i in range(len(fSpec))]
+
+
     fom = -1.0 * fX.flatten()
+    fom_org = -1.0 * original_FoM.flatten()
     indices = np.arange(len(X))
 
     # Apply smoothing if requested and data is long enough
@@ -119,20 +134,39 @@ def plot_optimization_results2(
             gains_smooth = savgol_filter(gains, window_length, polyorder)
         else:
             gains_smooth = gains
+
         if len(funities) >= window_length:
             funities_smooth = savgol_filter(funities, window_length, polyorder)
         else:
             funities_smooth = funities
+
+        if len(pm) >= window_length:
+            pm_smooth = savgol_filter(pm, window_length, polyorder)
+        else:
+            pm_smooth = pm
+
+        if len(power) >= window_length:
+            power_smooth = savgol_filter(power, window_length, polyorder)
+        else:
+            power_smooth = power
+
         if len(fom) >= window_length:
             fom_smooth = savgol_filter(fom, window_length, polyorder)
         else:
             fom_smooth = fom
+
+        if len(fom_org) >= window_length:
+            fom_org_smooth = savgol_filter(fom_org, window_length, polyorder)
+        else:
+            fom_org_smooth = fom_org  
     else:
         gains_smooth = gains
         funities_smooth = funities
         fom_smooth = fom
+        fom_org_smooth = fom_org
 
-    fig, axs = plt.subplots(3, 1, figsize=(10, 12), sharex=True)
+
+    fig, axs = plt.subplots(5, 1, figsize=(10, 12), sharex=True)
 
     axs[0].plot(indices, gains_smooth, label="Gain (smoothed)")
     axs[0].set_ylabel("Gain")
@@ -144,15 +178,29 @@ def plot_optimization_results2(
     axs[1].set_title("UGBW vs. Iteration")
     axs[1].legend()
 
-    axs[2].plot(indices, fom_smooth, label="FoM (smoothed)", color="green")
-    axs[2].set_ylabel("FoM")
-    axs[2].set_title("FoM vs. Iteration")
-    axs[2].set_xlabel("Iteration")
+
+    axs[2].plot(indices, pm_smooth, label="PM (smoothed)", color="red")
+    axs[2].set_ylabel("PM")
+    axs[2].set_title("PM vs. Iteration")
     axs[2].legend()
+
+
+    axs[3].plot(indices, power_smooth, label="Power (smooth)", color="blue")
+    axs[3].set_ylabel("Power")
+    axs[3].set_title("Power vs. Iteration")
+    axs[3].legend()
+
+    axs[4].plot(indices, fom_smooth, label="FoM (smoothed)", color="green")
+    axs[4].plot(indices, fom_org_smooth, label="FoM-org (smoothed)", color="purple")#, linestyle='dashed')
+    axs[4].set_ylabel("FoM")
+    axs[4].set_title("FoM vs. Iteration")
+    axs[4].set_xlabel("Iteration")
+    axs[4].legend()
+
 
     plt.tight_layout()
     plt.savefig("optimization_results_smoothed.png")
     # plt.show()
 
-
+plot_optimization_results(X, fX, fSpec)
 plot_optimization_results2(X, fX, fSpec, window_length=100)
