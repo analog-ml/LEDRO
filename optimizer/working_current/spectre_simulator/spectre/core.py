@@ -1,38 +1,19 @@
-import re
-import copy
 import os
-from jinja2 import Environment, FileSystemLoader
 import os
 import subprocess
-from multiprocessing.dummy import Pool as ThreadPool
 import yaml
 import importlib
 import random
 import numpy as np
-from spectre_simulator.util.core import IDEncoder, Design
-from spectre_simulator.spectre.parser import SpectreParser
-import IPython
+
 import shutil
-import glob
-from spmetrics.utils import (
-    run_ngspice_simulation,
-    setup_ac_simulation,
-    setup_op_simulation,
-)
-from spmetrics.metrics import (
-    # AC simulation functions
-    compute_bandwidth,
-    compute_unity_gain_bandwidth,
-    compute_phase_margin,
-    compute_ac_gain,
-    compute_power,
-)
+import sys
+from spectre_simulator.util.core import IDEncoder, Design
+from jinja2 import Environment, FileSystemLoader
+from multiprocessing.dummy import Pool as ThreadPool
+from loguru import logger
 
 debug = False
-import pandas as pd
-
-import sys
-from loguru import logger
 
 logger.remove()
 log_level = "DEBUG"
@@ -49,7 +30,7 @@ log_format = (
 logger.remove()
 
 # Log to stdout
-logger.add(sys.stdout, format=log_format, level="INFO")
+logger.add(sys.stdout, format=log_format, level="DEBUG")
 
 # Log to file with rotation and retention
 logger.add(
@@ -59,66 +40,6 @@ logger.add(
     rotation="1 day",
     retention="7 days",
 )
-
-
-def get_variable_names(log_path):
-    variable_names = []
-    with open(log_path, "r") as f:
-        in_variables_section = False
-        for line in f:
-            if line.strip() == "Variables:":
-                in_variables_section = True
-                continue
-            if in_variables_section:
-                if line.strip() == "" or line.startswith("Values:"):
-                    break
-                # Each variable line: <index> <name> <type>
-                parts = line.strip().split()
-                if len(parts) >= 2:
-                    variable_names.append(parts[1])
-    return variable_names
-
-
-def get_values(log_path):
-    values = []
-    with open(log_path, "r") as f:
-        in_values_section = False
-        for line in f:
-            if line.strip() == "Values:":
-                in_values_section = True
-                continue
-            if in_values_section:
-                if line.strip() == "":
-                    break
-                # Each value line: <index> <value>
-                parts = line.strip().split()
-                for part in parts:
-                    try:
-                        values.append(float(part))
-                    except ValueError:
-                        pass
-    return values[1:]  # Skip the first value which is usually an index or header
-
-
-# Helper function to determine PMOS region
-def get_pmos_region(vgs, vds, vth):
-    if vgs > vth:
-        return 0  # cut-off
-    else:
-        if vds > vgs - vth:
-            return 1  # triode
-        else:
-            return 2  # saturation
-
-
-def get_nmos_region(vgs, vds, vth):
-    if vgs < vth:
-        return 0  # cut-off
-    else:
-        if vds < vgs - vth:
-            return 1  # triode
-        else:
-            return 2  # saturation
 
 
 def get_config_info():
@@ -152,8 +73,8 @@ class SpectreWrapper(object):
         if not os.path.isabs(netlist_loc):
             netlist_loc = os.path.abspath(netlist_loc)
         pp_module = importlib.import_module(tb_dict["tb_module"])
-        pp_class = getattr(pp_module, tb_dict["tb_class"])
-        self.post_process = getattr(pp_class, tb_dict["post_process_function"])
+        self.pp_class = getattr(pp_module, tb_dict["tb_class"])
+        self.post_process = getattr(self.pp_class, tb_dict["post_process_function"])
         self.tb_params = tb_dict["tb_params"]
 
         self.config_info = get_config_info()
@@ -192,12 +113,14 @@ class SpectreWrapper(object):
         return fname
 
     def _create_design(self, state, new_fname):
+        design_folder = os.path.join(self.gen_dir, new_fname)
+
         logger.debug(f"Creating a new design with {state=} ")
+        state['design_path'] = design_folder
         output = self.template.render(**state)
 
-        design_folder = os.path.join(self.gen_dir, new_fname)
         os.makedirs(design_folder, exist_ok=True)
-        fpath = os.path.join(design_folder, new_fname + ".scs")
+        fpath = os.path.join(design_folder, new_fname + ".cir")
         with open(fpath, "w") as f:
             f.write(output)
             f.close()
@@ -245,113 +168,43 @@ class SpectreWrapper(object):
         specs = results
         return state, specs, info
 
+
+    def parse_output(self, output_path):
+
+        ac_fname = os.path.join(output_path, "ac.csv")
+        dc_fname = os.path.join(output_path, "dc.csv")
+
+        if not os.path.isfile(ac_fname) or not os.path.isfile(dc_fname):
+            print("ac/dc file doesn't exist: %s" % output_path)
+
+        ac_raw_outputs = np.genfromtxt(ac_fname, skip_header=1)
+        dc_raw_outputs = np.genfromtxt(dc_fname, skip_header=1)
+        freq = ac_raw_outputs[:, 0]
+        vout_real = ac_raw_outputs[:, 1]
+        vout_imag = ac_raw_outputs[:, 2]
+        vout = vout_real + 1j * vout_imag
+        ibias = -dc_raw_outputs[1]
+
+        return freq, vout, ibias
     def _parse_result(self, design_folder):
 
         logger.debug(f"Parsing results from design folder: {design_folder}")
+        freq, vout, ibias = self.parse_output(design_folder)
 
-        vals = get_values(os.path.join(design_folder, "output.log"))
-        names = get_variable_names(os.path.join(design_folder, "output.log"))
+        gain = getattr(self.pp_class, "find_dc_gain")(vout)
+        ugbw, valid = getattr(self.pp_class, "find_ugbw")(freq, vout)
+        phm = getattr(self.pp_class, "find_phm")(freq, vout)
 
-        # print("length of names:", len(names))
-        # Output: ['v(voutp)', 'i(v0)', '@nm0[gm]', '@nm0[ids]', '@nm0[vth]', 'vgs_nm0', 'vds_nm0',
-        # '@nm1[gm]', '@nm1[ids]', '@nm1[vth]', 'vgs_nm1', 'vds_nm1',
-        # '@nm2[gm]', '@nm2[ids]', '@nm2[vth]', 'vgs_nm2', 'vds_nm2',
-        # '@nm3[gm]', '@nm3[ids]', '@nm3[vth]', 'vgs_nm3', 'vds_nm3',
-        # '@nm4[gm]', '@nm4[ids]', '@nm4[vth]', 'v(vgs_nm4)', 'v(vds_nm4)',
-        # '@nm5[gm]', '@nm5[ids]', '@nm5[vth]', 'vgs_nm5', 'vds_nm5',
-        # '@nm6[gm]', '@nm6[ids]', '@nm6[vth]', 'vgs_nm6', 'vds_nm6',
-        # '@nm7[gm]', '@nm7[ids]', '@nm7[vth]', 'vgs_nm7', 'vds_nm7',
-        # '@nm8[gm]', '@nm8[ids]', '@nm8[vth]', 'vgs_nm8', 'vds_nm8',
-        # '@nm9[gm]', '@nm9[ids]', '@nm9[vth]', 'v(vgs_nm9)', 'v(vds_nm9)',
-        # '@nm10[gm]', '@nm10[ids]', '@nm10[vth]', 'v(vgs_nm10)', 'v(vds_nm10)']
-
-        # Ensure the number of values matches the number of column names
-        assert len(vals) == len(
-            names
-        ), "Mismatch between values and column names length"
-
-        # turn "vals" and "names" into a pandas DataFrame
-        df = pd.DataFrame([vals], columns=names)
-
-        # Add region columns for PMOS transistors: nm5, nm6, nm2, nm1
-        pmos_list = ["nm5", "nm6", "nm2", "nm1"]
-        for pmos in pmos_list:
-            # Get column names for Vgs, Vds, Vth
-            vgs_col = f"vgs_{pmos}"
-            vds_col = f"vds_{pmos}"
-            vth_col = f"@{pmos}[vth]"
-            # Some Vgs/Vds columns are named as v(vgs_nmX), v(vds_nmX)
-            if vgs_col not in df.columns:
-                vgs_col = f"v(vgs_{pmos})"
-            if vds_col not in df.columns:
-                vds_col = f"v(vds_{pmos})"
-            # Compute region
-            df[f"@{pmos}[region]"] = df.apply(
-                lambda row: get_pmos_region(row[vgs_col], row[vds_col], -row[vth_col]),
-                axis=1,
-            )
-
-        # Add region columns for NMOS transistors: nm8, nm7, nm3, nm0, nm10, nm9, nm4
-        nmos_list = ["nm8", "nm7", "nm3", "nm0", "nm10", "nm9", "nm4"]
-        for nmos in nmos_list:
-            vgs_col = f"vgs_{nmos}"
-            vds_col = f"vds_{nmos}"
-            vth_col = f"@{nmos}[vth]"
-            # Some Vgs/Vds columns are named as v(vgs_nmX), v(vds_nmX)
-            if vgs_col not in df.columns:
-                vgs_col = f"v(vgs_{nmos})"
-            if vds_col not in df.columns:
-                vds_col = f"v(vds_{nmos})"
-            df[f"@{nmos}[region]"] = df.apply(
-                lambda row: get_nmos_region(row[vgs_col], row[vds_col], row[vth_col]),
-                axis=1,
-            )
-
-        # ===========================================================
-        # Write a new file with the same netlist definition without .control block
-        # this is needed for the ac simulation to work
-        # we assume that the netlist file is in the design_folder and it has a .scs extension
-        # ===========================================================
         if not os.path.exists(design_folder):
             raise FileNotFoundError(f"Design folder {design_folder} does not exist")
 
-        # Find the netlist file in the design folder
-        # Assuming there is only one .scs file in the design folder
-        netlist_path = glob.glob(os.path.join(design_folder, "*.scs"))[0]
-        new_netlist_path = os.path.join(design_folder, "netlist.scs")
-
-        with open(netlist_path, "r") as fr, open(new_netlist_path, "w") as fw:
-            for line in fr:
-                # Remove the first line if it contains 'ngspice'
-                if not line.startswith(".control"):
-                    fw.write(line)
-                else:
-                    fw.write(".end")
-                    break
-
-        # Perform simulation & obtain performance metrics
-        netlist = open(os.path.join(design_folder, "netlist.scs")).read()
-        input_nodes = ["Vinn", "Vinp"]
-        output_nodes = ["Voutn", "Voutp"]
-        ac_netlist = setup_ac_simulation(netlist, input_nodes, output_nodes)
-        run_ngspice_simulation(ac_netlist)
-        bandwidth = compute_bandwidth("output_ac.dat")
-        ubw, valid = compute_unity_gain_bandwidth("output_ac.dat")
-        phase_margin = compute_phase_margin("output_ac.dat")
-        ac_gain = compute_ac_gain("output_ac.dat")
-
-        op_netlist = setup_op_simulation(netlist, input_nodes, measure_vars=["i(v0)"])
-        run_ngspice_simulation(op_netlist)
-        power = compute_power("output_op.dat")
-
         metrics = {}
-        metrics["bandwidth"] = bandwidth
-        metrics["ugbw"] = ubw
-        metrics["pm"] = phase_margin
-        metrics["ac_gain"] = ac_gain
-        metrics["power"] = power
+        metrics["ugbw"] = ugbw
+        metrics["pm"] = phm
+        metrics["ac_gain"] = gain
+        metrics["power"] = ibias
         metrics["valid"] = valid
-        res = {"df": df, "metrics": metrics}
+        res = {"df": None, "metrics": metrics}
         logger.info(f"Metrics: {metrics}")
 
         return res
@@ -597,120 +450,88 @@ class OrderedDictYAMLLoader(yaml.Loader):
 
 def main():
     # testing the cs amp functionality with Jinja2
-    CIR_YAML = "/home/pham/code/analog-ml/LEDRO/optimizer/working_current/spectre_simulator/spectre/specs_list_read/fully_differential_folded_cascode.yaml"
+    CIR_YAML = "/home/pham/code/analog-ml/LEDRO/optimizer/working_current/spectre_simulator/spectre/specs_list_read/Zhenxin_S_FC.yaml"
     with open(CIR_YAML, "r") as f:
         yaml_data = yaml.load(f, OrderedDictYAMLLoader)
 
     opamp_env = SpectreWrapper(tb_dict=yaml_data["measurement"]["testbenches"]["ac_dc"])
 
-    data = "\nInitial Data:\nI got these points and their reward: metrics- gain:  5.77 , UGBW:  2.91e+04 , PM:  69.2 , power:  4.32e-12 with nA1: 7.45e-08, nB1: 6, nA2: 1.4e-07, nB2: 2, nA3: 3.75e-08, nB3: 3, nA4: 3.04e-07, nB4: 3, nA5: 3.72e-08, nB5: 4, nA6: 1.24e-07, nB6: 2, vbiasp1: 0.659, vbiasp2: 0.408, vbiasn0: 0.0525, vbiasn1: 0.016, vbiasn2: 0.352, vcm: 0.4, vdd: 0.8, tempc: 27 and transistor regions MM0 is in cut-off, MM1 is in cut-off, MM2 is in cut-off, MM3 is in cut-off, MM4 is in cut-off, MM5 is in cut-off, MM6 is in cut-off, MM7 is in cut-off, MM8 is in cut-off, MM9 is in cut-off, MM10 is in cut-off and reward -3.99. "
-    state = OrderedDict({
-        "nA1": 7.45e-08,
-        "nB1": 6,
-        "nA2": 1.4e-07,
-        "nB2": 2,
-        "nA3": 3.75e-08,
-        "nB3": 3,
-        "nA4": 3.04e-07,
-        "nB4": 3,
-        "nA5": 3.72e-08,
-        "nB5": 4,
-        "nA6": 1.24e-07,
-        "nB6": 2,
-        "vbiasp1": 0.659,
-        "vbiasp2": 0.408,
-        "vbiasn0": 0.0525,
-        "vbiasn1": 0.016,
-        "vbiasn2": 0.352,
-        "vcm": 0.4,
-        "vdd": 0.8,
-        "tempc": 27,
-    })
+    keys = [
+            "w_m12",
+            "w_m3", 
+            "w_m45",
+            "w_m67", 
+            "w_m89", 
+            "w_m1011", 
+            "vbp1",
+            "vbp2",
+            "vbn1",
+            "vbn2",
+            "cc"
+            ]
+    vals = [242.84323390575366,
+    133.8078576088182,
+    292.64831036522917,
+    198.92456090951285,
+    139.80927503463723,
+    131.13102449401783,
+    0.6568611016690267,
+    0.17811360700059536,
+    0.686108575948138,
+    0.3053737857576733,
+    1.0]
+    state = dict(zip(keys, vals))
+
     state, specs, info = opamp_env._create_design_and_simulate(state)
     logger.info(state)
     logger.info(specs)
 
     from sample.random_sample_turbo_1 import Levy
-    nA1_range = [10e-9, 900e-9]
-    nB1_range = [1, 7]
-    nA2_range = [10e-9, 900e-9]
-    nB2_range = [1, 7]
-    nA3_range = [10e-9, 900e-9]
-    nB3_range = [1, 7]
-    nA4_range = [10e-9, 900e-9]
-    nB4_range = [1, 7]
-    nA5_range = [10e-9, 900e-9]
-    nB5_range = [1, 7]
-    nA6_range = [10e-9, 900e-9]
-    nB6_range = [1, 7]
-    vbiasp1_range = [0.01, 0.8]
-    vbiasp2_range = [0.01, 0.8]
-    vbiasn0_range = [0.01, 0.8]
-    vbiasn1_range = [0.01, 0.8]
-    vbiasn2_range = [0.01, 0.8]
+    w_m12_range = [130, 100000]
+    w_m3_range = [50, 100000]
+    w_m45_range = [130, 100000]
+    w_m67_range = [80, 100000]
+    w_m89_range = [50, 100000]
+    w_m1011_range = [50, 100000]
+    vbp1_range = [0.0001, 1.1]
+    vbp2_range = [0.0001, 1.1]
+    vbn1_range = [0.0001, 1.1]
+    vbn2_range = [0.0001, 1.1]
+    cc_range = [0.01, 10]
+
     lb = np.array(
     [
-        nA1_range[0],
-        nB1_range[0],
-        nA2_range[0],
-        nB2_range[0],
-        nA3_range[0],
-        nB3_range[0],
-        nA4_range[0],
-        nB4_range[0],
-        nA5_range[0],
-        nB5_range[0],
-        nA6_range[0],
-        nB6_range[0],
-        # nA7_range[0],
-        # nB7_range[0],
-        # nA8_range[0],
-        # nB8_range[0],
-        # nA9_range[0],
-        # nB9_range[0],
-        # vbiasp0_range[0],
-        vbiasp1_range[0],
-        vbiasp2_range[0],
-        vbiasn0_range[0],
-        vbiasn1_range[0],
-        vbiasn2_range[0],
-        # cc_range[0],
+        w_m12_range[0],
+        w_m3_range[0],
+        w_m45_range[0],
+        w_m67_range[0],
+        w_m89_range[0],
+        w_m1011_range[0],
+        vbp1_range[0],
+        vbp2_range[0],
+        vbn1_range[0],
+        vbn2_range[0],
+        cc_range[0]
     ]
     )
     ub = np.array(
         [
-            nA1_range[1],
-            nB1_range[1],
-            nA2_range[1],
-            nB2_range[1],
-            nA3_range[1],
-            nB3_range[1],
-            nA4_range[1],
-            nB4_range[1],
-            nA5_range[1],
-            nB5_range[1],
-            nA6_range[1],
-            nB6_range[1],
-            # nA7_range[1],
-            # nB7_range[1],
-            # nA8_range[1],
-            # nB8_range[1],
-            # nA9_range[1],
-            # nB9_range[1],
-            # vbiasp0_range[1],
-            vbiasp1_range[1],
-            vbiasp2_range[1],
-            vbiasn0_range[1],
-            vbiasn1_range[1],
-            vbiasn2_range[1],
-            # cc_range[1]
+        w_m12_range[1],
+        w_m3_range[1],
+        w_m45_range[1],
+        w_m67_range[1],
+        w_m89_range[1],
+        w_m1011_range[1],
+        vbp1_range[1],
+        vbp2_range[1],
+        vbn1_range[1],
+        vbn2_range[1],
+        cc_range[1]
         ]
     )
-    vcm = 0.40
-    vdd = 0.8
-    tempc = 27
+
     CIR_YAML = (
-        "spectre_simulator/spectre/specs_list_read/fully_differential_folded_cascode.yaml"
+        "spectre_simulator/spectre/specs_list_read/Zhenxin_S_FC.yaml"
     )
     with open(CIR_YAML, "r") as f:
         yaml_data = yaml.load(f, OrderedDictYAMLLoader)
@@ -723,12 +544,12 @@ def main():
     specs_ideal = np.array(specs_ideal)
     params_id = list(params.keys())
     specs_id = list(specs.keys())    
-    f = Levy(17, params_id, specs_id, specs_ideal, vcm, vdd, tempc, ub, lb)
+    # f = Levy(17, params_id, specs_id, specs_ideal, vcm, vdd, tempc, ub, lb)
 
-    # print (f())
-    x = list(state.values())[:-3]
-    x = np.array(x).reshape(-1)
-    print (f.evaluate(x))
+    # # print (f())
+    # x = list(state.values())[:-3]
+    # x = np.array(x).reshape(-1)
+    # print (f.evaluate(x))
 
 if __name__ == "__main__":
     main()
