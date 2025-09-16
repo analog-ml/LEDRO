@@ -152,6 +152,7 @@ class Levy:
         specs_ideal: list[float],
         ub: np.ndarray,
         lb: np.ndarray,
+        enable_adaptive_reward=True,
     ):
         """
         :param dim: Dimension of the problem. For analog sizing with fully differential folded cascode opamp, this is 17.
@@ -176,6 +177,7 @@ class Levy:
         self.last_change = 0
         self.last_params = None
         self.cur_specs = None
+        self.enable_adaptive_reward = enable_adaptive_reward
 
     def lookup(self, spec: list[float], goal_spec: list[float]) -> np.ndarray:
         """
@@ -239,13 +241,13 @@ class Levy:
             return reward
 
         self.ret_reward_0 = calc_reward([1, 1, 1, 1])
-        self.ret_reward_1 = calc_reward([0.22, 0.15, 0.13, 0.50])
-        self.ret_reward_2 = calc_reward([0.34, 0.24, 0.12, 0.30])
-        self.ret_reward_3 = calc_reward([0.40, 0.30, 0.15, 0.15])
-        self.ret_reward_4 = calc_reward([0.30, 0.40, 0.20, 0.10])
-        self.ret_reward_5 = calc_reward([0.22, 0.30, 0.40, 0.08])
-        self.ret_reward_6 = calc_reward([0.18, 0.18, 0.24, 0.40])
-        self.ret_reward_7 = calc_reward([0.25, 0.25, 0.25, 0.25])
+        self.ret_reward_1 = calc_reward([0.70, 0.20, 0.00, 0.10])
+        self.ret_reward_2 = calc_reward([0.55, 0.30, 0.05, 0.10])
+        self.ret_reward_3 = calc_reward([0.35, 0.45, 0.10, 0.10])
+        self.ret_reward_4 = calc_reward([0.25, 0.35, 0.30, 0.10])
+        self.ret_reward_5 = calc_reward([0.15, 0.25, 0.45, 0.15])
+        self.ret_reward_6 = calc_reward([0.15, 0.20, 0.30, 0.35])
+        self.ret_reward_7 = calc_reward([0.35, 0.25, 0.20, 0.20])
 
         reward_map = {
             0: self.ret_reward_0,
@@ -258,7 +260,10 @@ class Levy:
             7: self.ret_reward_7,
         }
 
-        reward = reward_map[self.reward_idx]
+        if self.enable_adaptive_reward:
+            reward = reward_map[self.reward_idx]
+        else:
+            reward = self.ret_reward_0
 
         logger.debug(
             f"reward: {reward:.3g} for specs: {spec} and ideal specs: {goal_spec}"
@@ -295,10 +300,10 @@ class Levy:
         else:
             print("self.cur_specs is None......................")
 
-        if self.last_change < 5:
+        if self.last_change < 10:
             self.last_change = self.last_change + 1
         else:
-            if self.reward_idx == 1 and gain > 900:
+            if self.reward_idx == 1 and gain > 700:
                 self.reward_idx = 2
                 self.last_change = 0
 
@@ -306,18 +311,18 @@ class Levy:
                 self.reward_idx = 3
                 self.last_change = 0
 
-            elif self.reward_idx == 3 and power < 1.2e-4:
+            elif self.reward_idx == 3 and ugbw > 9e7:
                 self.reward_idx = 4
                 self.last_change = 0
 
-            elif self.reward_idx == 4 and pm > 55:
+            elif self.reward_idx == 4 and pm > 60:
                 self.reward_idx = 5
                 self.last_change = 0
 
-            elif self.reward_idx == 5 and pm > 60:
+            elif self.reward_idx == 5 and pm > 70:
                 self.reward_idx = 6
                 self.last_change = 0
-            elif self.reward_idx == 6 and gain > 1500:
+            elif self.reward_idx == 6 and power < 1e-3:
                 self.reward_idx = 7
                 self.last_change = 0
             #
@@ -344,15 +349,11 @@ class Levy:
             #     self.reward_idx = 7
             #     self.last_change = 0
 
-        # IMPORTANT: comment out the following lines if you don't want to use adaptive reward function during optimization
-        # self.reward_idx = 0
-        # self.last_params = None
-
         if self.last_params is None:
             self.last_params = np.copy(x)
 
         # [2,2]
-        names = [
+        __reference__ = [
             "w_m12",  # 0
             "w_m3",  # 1
             "w_m45",  # 2
@@ -476,9 +477,12 @@ class Levy:
 
 
 if __name__ == "__main__":
-    if os.path.exists("performance+deviceparams.log"):
-        os.remove("performance+deviceparams.log")
-    f = Levy(11, params_id, specs_id, specs_ideal, ub, lb)
+    enable_adaptive_reward = True
+
+    print("enable_adaptive_reward: ", enable_adaptive_reward)
+    input("Press Enter to continue...")
+
+    f = Levy(11, params_id, specs_id, specs_ideal, ub, lb, enable_adaptive_reward)
 
     turbo1 = Turbo1(
         f=f,  # Handle to objective function
@@ -511,3 +515,9 @@ if __name__ == "__main__":
 
     print("Optimization completed.")
     print("Best value found:\n\tf(x) = %.3f\nObserved at:\n\tx = %s" % (f_best, x_best))
+
+    with open("result.log", "w") as f:
+        f.write(
+            "Best value found:\n\tf(x) = %.3f\nObserved at:\n\tx = %s"
+            % (f_best, x_best)
+        )
