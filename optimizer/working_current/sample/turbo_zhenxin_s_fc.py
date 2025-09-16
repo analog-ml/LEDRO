@@ -298,51 +298,51 @@ class Levy:
         if self.last_change < 5:
             self.last_change = self.last_change + 1
         else:
-            # if self.reward_idx == 1 and gain > 900:
-            #     self.reward_idx = 2
-            #     self.last_change = 0
-
-            # elif self.reward_idx == 2 and ugbw > 6.0e7:
-            #     self.reward_idx = 3
-            #     self.last_change = 0
-
-            # elif self.reward_idx == 3 and power < 1.2e-4:
-            #     self.reward_idx = 4
-            #     self.last_change = 0
-
-            # elif self.reward_idx == 4 and pm > 55:
-            #     self.reward_idx = 5
-            #     self.last_change = 0
-
-            # elif self.reward_idx == 5 and pm > 60:
-            #     self.reward_idx = 6
-            #     self.last_change = 0
-            # elif self.reward_idx == 6 and gain > 1500:
-            #     self.reward_idx = 7
-            #     self.last_change = 0
-            #
-            if self.reward_idx == 1 and power < 12e-3:
+            if self.reward_idx == 1 and gain > 900:
                 self.reward_idx = 2
                 self.last_change = 0
 
-            elif self.reward_idx == 2 and gain > 565:
+            elif self.reward_idx == 2 and ugbw > 6.0e7:
                 self.reward_idx = 3
                 self.last_change = 0
 
-            elif self.reward_idx == 3 and gain > 800:
+            elif self.reward_idx == 3 and power < 1.2e-4:
                 self.reward_idx = 4
                 self.last_change = 0
 
-            elif self.reward_idx == 4 and ugbw > 5.0e-6:
+            elif self.reward_idx == 4 and pm > 55:
                 self.reward_idx = 5
                 self.last_change = 0
 
-            elif self.reward_idx == 5 and pm > 60.0:
+            elif self.reward_idx == 5 and pm > 60:
                 self.reward_idx = 6
                 self.last_change = 0
-            elif self.reward_idx == 6 and power <= 10e-3:
+            elif self.reward_idx == 6 and gain > 1500:
                 self.reward_idx = 7
                 self.last_change = 0
+            #
+            # if self.reward_idx == 1 and power < 12e-3:
+            #     self.reward_idx = 2
+            #     self.last_change = 0
+
+            # elif self.reward_idx == 2 and gain > 565:
+            #     self.reward_idx = 3
+            #     self.last_change = 0
+
+            # elif self.reward_idx == 3 and gain > 800:
+            #     self.reward_idx = 4
+            #     self.last_change = 0
+
+            # elif self.reward_idx == 4 and ugbw > 5.0e-6:
+            #     self.reward_idx = 5
+            #     self.last_change = 0
+
+            # elif self.reward_idx == 5 and pm > 60.0:
+            #     self.reward_idx = 6
+            #     self.last_change = 0
+            # elif self.reward_idx == 6 and power <= 10e-3:
+            #     self.reward_idx = 7
+            #     self.last_change = 0
 
         # IMPORTANT: comment out the following lines if you don't want to use adaptive reward function during optimization
         # self.reward_idx = 0
