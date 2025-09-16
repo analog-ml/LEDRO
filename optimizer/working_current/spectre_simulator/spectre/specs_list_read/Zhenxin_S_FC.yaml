@@ -28,12 +28,12 @@ spec_range:
   funity: [!!float 3.0e+5, null, 1]
   pm: [60.0, null, 1]
 
-normalize: !!python/tuple [!!float 5.0e+6,900,!!float 10e-3,60]
+normalize: !!python/tuple [!!float 1.0e+8,1000,!!float 10e-5,60]
 
 target_spec:
-  gain: !!python/tuple [1000]
-  funity: !!python/tuple [!!float 5.0e+6]
+  gain: !!python/tuple [1500]
+  funity: !!python/tuple [!!float 1.0e+8]
   pm: !!python/tuple [60]
-  power: !!python/tuple [10e-3]
+  power: !!python/tuple [10e-5]
 
 
