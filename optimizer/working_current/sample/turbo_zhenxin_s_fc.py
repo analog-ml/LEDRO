@@ -252,13 +252,15 @@ class Levy:
             return reward
 
         self.ret_reward_0 = calc_reward([1, 1, 1, 1])
-        self.ret_reward_1 = calc_reward([0.15, 0.45, 0.10, 0.30])
-        self.ret_reward_2 = calc_reward([0.25, 0.45, 0.10, 0.20])
-        self.ret_reward_3 = calc_reward([0.45, 0.30, 0.15, 0.10])
-        self.ret_reward_4 = calc_reward([0.35, 0.20, 0.35, 0.10])
-        self.ret_reward_5 = calc_reward([0.30, 0.50, 0.10, 0.10])
-        self.ret_reward_6 = calc_reward([0.20, 0.15, 0.15, 0.50])
-        self.ret_reward_7 = calc_reward([0.30, 0.25, 0.25, 0.20])
+        self.ret_reward_1 = calc_reward([0.15, 0.15, 0.10, 0.60])
+        self.ret_reward_2 = calc_reward([0.20, 0.25, 0.10, 0.45])
+        self.ret_reward_3 = calc_reward([0.30, 0.30, 0.05, 0.35])
+        self.ret_reward_4 = calc_reward([0.35, 0.35, 0.05, 0.25])
+        self.ret_reward_5 = calc_reward([0.35, 0.40, 0.10, 0.15])
+        self.ret_reward_6 = calc_reward([0.40, 0.35, 0.15, 0.10])
+        self.ret_reward_7 = calc_reward([0.25, 0.25, 0.25, 0.25])
+
+        # self.ret_reward_7 = calc_reward()
 
         reward_map = {
             0: self.ret_reward_0,
@@ -314,7 +316,7 @@ class Levy:
         if self.last_change <= 1:
             self.last_change = self.last_change + 1
         else:
-            if self.reward_idx == 1 and power < 1e3:
+            if self.reward_idx == 1 and power < 0.98e3:
                 self.reward_idx = 2
                 self.last_change = 0
 
@@ -322,21 +324,22 @@ class Levy:
                 self.reward_idx = 3
                 self.last_change = 0
 
-            elif self.reward_idx == 3 and gain > 900:
+            elif self.reward_idx == 3 and gain > 700:
                 self.reward_idx = 4
                 self.last_change = 0
 
-            elif self.reward_idx == 4 and pm > 70:
+            elif self.reward_idx == 4 and pm > 60:
                 self.reward_idx = 5
                 self.last_change = 0
 
-            elif self.reward_idx == 5 and ugbw > 1e8:
+            elif self.reward_idx == 5 and gain > 1200:
                 self.reward_idx = 6
                 self.last_change = 0
 
-            elif self.reward_idx == 6 and power < 1e-3:
+            elif self.reward_idx == 6 and gain > 1400:
                 self.reward_idx = 7
                 self.last_change = 0
+                # pass
 
             # if self.reward_idx == 1 and power < 12e-3:
             #     self.reward_idx = 2
@@ -390,7 +393,7 @@ class Levy:
                         new_x[idx] = val
 
             if self.reward_idx == 2:
-                keeps = [0, 1]
+                keeps = [0]
                 for idx, val in enumerate(x):
                     if idx not in keeps:
                         new_x[idx] = self.last_params[idx]
@@ -406,7 +409,7 @@ class Levy:
                         new_x[idx] = val
 
             if self.reward_idx == 4:
-                keeps = [3, 4]
+                keeps = [3, 4, 10]
                 for idx, val in enumerate(x):
                     if idx not in keeps:
                         new_x[idx] = self.last_params[idx]
@@ -414,7 +417,7 @@ class Levy:
                         new_x[idx] = val
 
             if self.reward_idx == 5:
-                keeps = [6, 7, 8, 9]
+                keeps = [2, 3]
                 for idx, val in enumerate(x):
                     if idx not in keeps:
                         new_x[idx] = self.last_params[idx]
@@ -422,7 +425,7 @@ class Levy:
                         new_x[idx] = val
 
             if self.reward_idx == 6:
-                keeps = [1, 5]
+                keeps = [6, 7, 8, 9]
                 for idx, val in enumerate(x):
                     if idx not in keeps:
                         new_x[idx] = self.last_params[idx]
@@ -430,7 +433,7 @@ class Levy:
                         new_x[idx] = val
 
             if self.reward_idx == 7:
-                keeps = [0, 2, 3]
+                keeps = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
                 for idx, val in enumerate(x):
                     if idx not in keeps:
                         new_x[idx] = self.last_params[idx]
