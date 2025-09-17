@@ -252,13 +252,13 @@ class Levy:
             return reward
 
         self.ret_reward_0 = calc_reward([1, 1, 1, 1])
-        self.ret_reward_1 = calc_reward([0.10, 0.00, 0.00, 0.90])
-        self.ret_reward_2 = calc_reward([0.25, 0.60, 0.05, 0.10])
-        self.ret_reward_3 = calc_reward([0.45, 0.25, 0.25, 0.05])
-        self.ret_reward_4 = calc_reward([0.20, 0.30, 0.45, 0.05])
-        self.ret_reward_5 = calc_reward([0.35, 0.30, 0.25, 0.10])
-        # self.ret_reward_6 = calc_reward()
-        # self.ret_reward_7 = calc_reward()
+        self.ret_reward_1 = calc_reward([0.15, 0.45, 0.10, 0.30])
+        self.ret_reward_2 = calc_reward([0.25, 0.45, 0.10, 0.20])
+        self.ret_reward_3 = calc_reward([0.45, 0.30, 0.15, 0.10])
+        self.ret_reward_4 = calc_reward([0.35, 0.20, 0.35, 0.10])
+        self.ret_reward_5 = calc_reward([0.30, 0.50, 0.10, 0.10])
+        self.ret_reward_6 = calc_reward([0.20, 0.15, 0.15, 0.50])
+        self.ret_reward_7 = calc_reward([0.30, 0.25, 0.25, 0.20])
 
         reward_map = {
             0: self.ret_reward_0,
@@ -267,8 +267,8 @@ class Levy:
             3: self.ret_reward_3,
             4: self.ret_reward_4,
             5: self.ret_reward_5,
-            # 6: self.ret_reward_6,
-            # 7: self.ret_reward_7,
+            6: self.ret_reward_6,
+            7: self.ret_reward_7,
         }
 
         if self.enable_adaptive_reward:
@@ -311,20 +311,18 @@ class Levy:
         else:
             print("self.cur_specs is None......................")
 
-        # if self.last_change <= 1:
-        if False:
+        if self.last_change <= 1:
             self.last_change = self.last_change + 1
-        elif self.cur_specs is not None:
-            # else:
+        else:
             if self.reward_idx == 1 and power < 1e3:
                 self.reward_idx = 2
                 self.last_change = 0
 
-            elif self.reward_idx == 2 and ugbw > 7.0e7:
+            elif self.reward_idx == 2 and ugbw > 6.0e7:
                 self.reward_idx = 3
                 self.last_change = 0
 
-            elif self.reward_idx == 3 and gain > 1120:
+            elif self.reward_idx == 3 and gain > 900:
                 self.reward_idx = 4
                 self.last_change = 0
 
@@ -332,15 +330,14 @@ class Levy:
                 self.reward_idx = 5
                 self.last_change = 0
 
-            elif self.reward_idx == 5 and gain > 1400:
-                # self.reward_idx = 6
-                # self.last_change = 0
-                pass
+            elif self.reward_idx == 5 and ugbw > 1e8:
+                self.reward_idx = 6
+                self.last_change = 0
 
-            # elif self.reward_idx == 6 and power < 1e-3:
-            #     self.reward_idx = 7
-            #     self.last_change = 0
-            #
+            elif self.reward_idx == 6 and power < 1e-3:
+                self.reward_idx = 7
+                self.last_change = 0
+
             # if self.reward_idx == 1 and power < 12e-3:
             #     self.reward_idx = 2
             #     self.last_change = 0
@@ -385,7 +382,7 @@ class Levy:
 
         if self.enable_block_selection:
             if self.reward_idx == 1:
-                keeps = [5]
+                keeps = [1, 5]
                 for idx, val in enumerate(x):
                     if idx not in keeps:
                         new_x[idx] = self.last_params[idx]
@@ -399,7 +396,7 @@ class Levy:
                         new_x[idx] = self.last_params[idx]
                     else:
                         new_x[idx] = val
-
+            # [2,3]
             if self.reward_idx == 3:
                 keeps = [2, 3, 4]
                 for idx, val in enumerate(x):
@@ -409,7 +406,7 @@ class Levy:
                         new_x[idx] = val
 
             if self.reward_idx == 4:
-                keeps = [2, 3, 4]
+                keeps = [3, 4]
                 for idx, val in enumerate(x):
                     if idx not in keeps:
                         new_x[idx] = self.last_params[idx]
@@ -417,28 +414,28 @@ class Levy:
                         new_x[idx] = val
 
             if self.reward_idx == 5:
-                keeps = [0, 1]
+                keeps = [6, 7, 8, 9]
                 for idx, val in enumerate(x):
                     if idx not in keeps:
                         new_x[idx] = self.last_params[idx]
                     else:
                         new_x[idx] = val
 
-            # if self.reward_idx == 6:
-            #     keeps = [1, 5]
-            #     for idx, val in enumerate(x):
-            #         if idx not in keeps:
-            #             new_x[idx] = self.last_params[idx]
-            #         else:
-            #             new_x[idx] = val
+            if self.reward_idx == 6:
+                keeps = [1, 5]
+                for idx, val in enumerate(x):
+                    if idx not in keeps:
+                        new_x[idx] = self.last_params[idx]
+                    else:
+                        new_x[idx] = val
 
-            # if self.reward_idx == 7:
-            #     keeps = [2, 3, 4]
-            #     for idx, val in enumerate(x):
-            #         if idx not in keeps:
-            #             new_x[idx] = self.last_params[idx]
-            #         else:
-            #             new_x[idx] = val
+            if self.reward_idx == 7:
+                keeps = [0, 2, 3]
+                for idx, val in enumerate(x):
+                    if idx not in keeps:
+                        new_x[idx] = self.last_params[idx]
+                    else:
+                        new_x[idx] = val
         self.last_params = np.copy(new_x)
 
         CIR_YAML = "spectre_simulator/spectre/specs_list_read/Zhenxin_S_FC.yaml"
