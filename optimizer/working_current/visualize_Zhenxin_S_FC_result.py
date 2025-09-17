@@ -117,12 +117,12 @@ def plot_optimization_results(X, fX, fSpec):
     plt.savefig("optimization_results.png")
 
     for i in range(len(gains)):
-        writer.add_scalar("Gain", gains[i], i)
-        writer.add_scalar("UGBW", funities[i], i)
-        writer.add_scalar("PM", pm[i], i)
-        writer.add_scalar("Power", power[i], i)
-        writer.add_scalar("FoM", -1.0 * fX[i], i)
-        writer.add_scalar("FoM-org", -1.0 * original_FoM[i], i)
+        writer.add_scalar("turbo/Gain", gains[i], i)
+        writer.add_scalar("turbo/UGBW", funities[i], i)
+        writer.add_scalar("turbo/PM", pm[i], i)
+        writer.add_scalar("turbo/Power", power[i], i)
+        writer.add_scalar("turbo/FoM", -1.0 * fX[i], i)
+        writer.add_scalar("turbo/FoM-org", -1.0 * original_FoM[i], i)
 
 
 def plot_optimization_results2(
