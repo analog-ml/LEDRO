@@ -1,0 +1,544 @@
+import numpy as np
+import yaml
+import yaml.constructor
+import sys
+import os
+import numpy as np
+import pickle
+
+from loguru import logger
+from collections import OrderedDict
+from turbo.turbo import Turbo1
+from spectre_simulator.spectre.meas_script.NMCF_meas import *
+from collections import OrderedDict
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--ra", action="store_true", help="enable adaptive reward")
+parser.add_argument("--ba", action="store_true", help="enable block selection")
+
+args = parser.parse_args()
+
+
+logger.remove()
+log_level = "DEBUG"
+# log_format = "<green>{time:YYYY-MM-DD HH:mm:ss.SSS zz}</green> | <level>{level: <8}</level> | <yellow>Line {line: >4} ({file}):</yellow> <b>{message}</b>"
+# Custom format string
+log_format = (
+    "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
+    "<level>{level: <8}</level>| "
+    "<cyan>{module}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
+    "<level>{message}</level>"
+)
+
+# Clear default logger
+logger.remove()
+
+# Log to stdout
+logger.add(sys.stdout, format=log_format, level="DEBUG")
+
+# Log to file with rotation and retention
+logger.add(
+    "logs/turbo1_optimizer.log",
+    format=log_format,
+    level="DEBUG",
+    rotation="1 day",
+    retention="7 days",
+)
+
+
+np.random.seed(1299)
+region_mapping = {
+    0: "cut-off",
+    1: "triode",
+    2: "saturation",
+    3: "sub-threshold",
+    4: "breakdown",
+}
+
+
+class OrderedDictYAMLLoader(yaml.Loader):
+    """
+    A YAML loader that loads mappings into ordered dictionaries.
+    """
+
+    def __init__(self, *args, **kwargs):
+        yaml.Loader.__init__(self, *args, **kwargs)
+
+        self.add_constructor("tag:yaml.org,2002:map", type(self).construct_yaml_map)
+        self.add_constructor("tag:yaml.org,2002:omap", type(self).construct_yaml_map)
+
+    def construct_yaml_map(self, node):
+        data = OrderedDict()
+        yield data
+        value = self.construct_mapping(node)
+        data.update(value)
+
+    def construct_mapping(self, node, deep=False):
+        if isinstance(node, yaml.MappingNode):
+            self.flatten_mapping(node)
+        else:
+            raise yaml.constructor.ConstructorError(
+                None,
+                None,
+                "expected a mapping node, but found %s" % node.id,
+                node.start_mark,
+            )
+
+        mapping = OrderedDict()
+        for key_node, value_node in node.value:
+            key = self.construct_object(key_node, deep=deep)
+            value = self.construct_object(value_node, deep=deep)
+            mapping[key] = value
+        return mapping
+
+
+# Define parameter bounds
+parameter_range = OrderedDict(
+    [
+        ("MOSFET_0_8_M_BIASCM_PMOS", [1, 500]),  # 0
+        ("MOSFET_8_2_M_gm1_PMOS", [1, 500]),  # 1
+        ("MOSFET_10_1_M_gm2_PMOS", [1, 500]),  # 2
+        ("MOSFET_11_1_M_gmf2_PMOS", [1, 500]),  # 3
+        ("MOSFET_17_7_M_BIASCM_NMOS", [1, 500]),  # 4
+        ("MOSFET_21_2_M_LOAD2_NMOS", [1, 500]),  # 5
+        ("MOSFET_23_1_M_gm3_NMOS", [1, 500]),  # 6
+        # ...
+        ("MOSFET_0_8_W_BIASCM_PMOS", [0.42, 100]),  # 7
+        ("MOSFET_8_2_W_gm1_PMOS", [0.42, 100]),  # 8
+        ("MOSFET_10_1_W_gm2_PMOS", [0.42, 100]),  # 9
+        ("MOSFET_11_1_W_gmf2_PMOS", [0.42, 100]),  # 10
+        ("MOSFET_17_7_W_BIASCM_NMOS", [0.42, 100]),  # 11
+        ("MOSFET_21_2_W_LOAD2_NMOS", [0.42, 100]),  # 12
+        ("MOSFET_23_1_W_gm3_NMOS", [0.42, 100]),  # 13
+        # ...
+        ("MOSFET_0_8_L_BIASCM_PMOS", [0.15, 4]),  # 14
+        ("MOSFET_8_2_L_gm1_PMOS", [0.15, 4]),  # 15
+        ("MOSFET_10_1_L_gm2_PMOS", [0.15, 4]),  # 16
+        ("MOSFET_11_1_L_gmf2_PMOS", [0.15, 4]),  # 17
+        ("MOSFET_17_7_L_BIASCM_NMOS", [0.15, 4]),  # 18
+        ("MOSFET_21_2_L_LOAD2_NMOS", [0.15, 4]),  # 19
+        ("MOSFET_23_1_L_gm3_NMOS", [0.15, 4]),  # 20
+        # ...
+        ("CURRENT_0_BIAS", [1e-6, 1e-2]),  # 21
+        ("M_C0", [1, 50]),  # 22
+        ("M_C1", [1, 50]),  # 23
+    ]
+)
+# 15, 8, 1, 0, 7, 14
+# 16, 9, 2, 17, 10, 3, 19, 12, 5, 20, 13, 6, 18, 11, 4
+# 23, 22
+# 0,7, 14
+# 17, 10, 3 16, 9, 2, 19, 12, 5, 20, 13, 6, 18, 11, 4
+# 17, 10, 3 16, 9, 2, 19, 12, 5, 20, 13, 6, 18, 11, 4
+# 23, 22
+
+
+lb = np.array([param[0] for param in parameter_range.values()])
+ub = np.array([param[1] for param in parameter_range.values()])
+
+
+# Get a random sample
+CIR_YAML = "spectre_simulator/spectre/specs_list_read/NMCF.yaml"
+with open(CIR_YAML, "r") as f:
+    yaml_data = yaml.load(f, OrderedDictYAMLLoader)
+f.close()
+params = yaml_data["params"]
+specs = yaml_data["target_spec"]
+specs_ideal = []
+for spec in list(specs.values()):
+    specs_ideal.append(spec)
+specs_ideal = np.array(specs_ideal)
+params_id = list(params.keys())
+specs_id = list(specs.keys())
+
+
+class Levy:
+    def __init__(
+        self,
+        dim,
+        params_id: list[str],
+        specs_id: list[str],
+        specs_ideal: list[float],
+        ub: np.ndarray,
+        lb: np.ndarray,
+        enable_adaptive_reward=True,
+        enable_block_selection=False,
+    ):
+        """
+        :param dim: Dimension of the problem. For analog sizing with fully differential folded cascode opamp, this is 17.
+        :param params_id: List of parameter names
+        :param specs_id: List of specification names
+        :param specs_ideal: Ideal values for specifications
+        :param vcm: Common mode voltage
+        :param vdd: Supply voltage
+        :param tempc: Temperature in Celsius
+        :param ub: Upper bounds for parameters
+        :param lb: Lower bounds for parameters
+        """
+
+        self.dim = dim
+        self.params_id = params_id  # parameter names
+        self.specs_id = specs_id  # specification names
+        self.specs_ideal = specs_ideal
+        self.ub = ub
+        self.lb = lb
+
+        self.reward_idx = 1
+        self.last_change = 0
+        self.last_params = None
+        self.cur_specs = None
+        self.enable_adaptive_reward = enable_adaptive_reward
+        self.enable_block_selection = enable_block_selection
+
+    def lookup(self, spec: list[float], goal_spec: list[float]) -> np.ndarray:
+        """
+        Normalize the specifications based on their ideal values.
+        This function normalizes the specifications by calculating the relative difference
+        between the current specification values and the ideal values.
+        The normalization is done as per the formula:
+        (spec - goal_spec) / (goal_spec + spec)
+        This is a common approach to normalize specifications in analog design optimization.
+        Refer to the subsection II. Figure of Merit in the paper for details.
+
+        :param spec: Current specification values
+        :param goal_spec: Ideal specification values
+        :return: Normalized specifications
+        """
+        # assert isinstance(spec, list)
+        # assert isinstance(goal_spec, list)
+
+        goal_spec = [float(e) for e in goal_spec]
+        spec = [float(e) for e in spec]
+        spec = np.array(spec)
+        goal_spec = np.array(goal_spec)
+
+        norm_spec = (spec - goal_spec) / (np.abs(goal_spec) + np.abs(spec))
+        # (spec-goal_spec)/(goal_spec+spec)
+        return norm_spec
+
+    def reward(self, spec: list[float], goal_spec: list[float], specs_id: list[str]):
+        """
+        Calculate the reward based on the specifications and their ideal values.
+        :param spec: Current specification values
+        :param goal_spec: Ideal specification values
+        :param specs_id: List of specification names
+        :return: Reward value
+        """
+        # assert isinstance(spec, list)
+        # assert isinstance(goal_spec, list)
+        # assert isinstance(specs_id, list)
+        logger.debug(f"current spec: {spec}")
+        if len(spec) != len(goal_spec) or len(spec) != len(specs_id):
+            raise ValueError("spec, goal_spec, and specs_id must have the same length")
+
+        norm_specs = self.lookup(spec, goal_spec)
+
+        # pay attention to reward calculation, this is not quite the reward function in RL
+        # but rather a penalty value for the optimization process
+
+        def calc_reward(w):
+            # w = [1, 1, 1, 1] # weights for gain, power, pm, ugbw
+
+            reward = 0
+            for i, rel_spec in enumerate(norm_specs):
+                if specs_id[i] == "power" and rel_spec > 0:
+                    reward += w[1] * np.abs(rel_spec)
+                elif specs_id[i] == "gain" and rel_spec < 0:
+                    reward += w[0] * np.abs(rel_spec)
+                elif specs_id[i] == "funity" and rel_spec < 0:
+                    reward += w[-1] * np.abs(rel_spec)
+                elif specs_id[i] == "pm" and rel_spec < 0:
+                    reward += w[-2] * np.abs(rel_spec)
+            return reward
+
+        self.ret_reward_0 = calc_reward([1, 1, 1, 1])
+        self.ret_reward_1 = calc_reward([0.55, 0.25, 0.12, 0.08])
+        self.ret_reward_2 = calc_reward([0.45, 0.30, 0.15, 0.10])
+        self.ret_reward_3 = calc_reward([0.35, 0.35, 0.20, 0.10])
+        self.ret_reward_4 = calc_reward([0.30, 0.30, 0.20, 0.20])
+        self.ret_reward_5 = calc_reward([0.38, 0.30, 0.20, 0.12])
+        self.ret_reward_6 = calc_reward([0.40, 0.30, 0.20, 0.10])
+        self.ret_reward_7 = calc_reward([0.25, 0.25, 0.30, 0.20])
+
+        # self.ret_reward_1 = calc_reward()
+        # self.ret_reward_2 = calc_reward()
+        # self.ret_reward_3 = calc_reward()
+        # self.ret_reward_4 = calc_reward()
+        # self.ret_reward_5 = calc_reward()
+        # self.ret_reward_6 = calc_reward()
+        # self.ret_reward_7 = calc_reward()
+
+        # self.ret_reward_7 = calc_reward()
+
+        reward_map = {
+            0: self.ret_reward_0,
+            1: self.ret_reward_1,
+            2: self.ret_reward_2,
+            3: self.ret_reward_3,
+            4: self.ret_reward_4,
+            5: self.ret_reward_5,
+            6: self.ret_reward_6,
+            7: self.ret_reward_7,
+        }
+
+        if self.enable_adaptive_reward:
+            reward = reward_map[self.reward_idx]
+        else:
+            reward = self.ret_reward_0
+
+        logger.debug(
+            f"reward: {reward:.3g} for specs: {spec} and ideal specs: {goal_spec}"
+        )
+        return reward  ###updated
+
+    def __call__(self, x):
+        """
+        :param x: A numpy array of shape (dim,) representing the parameters to evaluate.
+        :return: A float value representing the reward for the given parameters.
+        """
+        reward, _ = self.evaluate(x)
+        return reward
+
+    def evaluate(self, x):
+        """
+        Evaluate the objective function for a given sample x.
+        :param x: A numpy array of shape (dim,) representing the parameters to evaluate.
+        :return: A float value representing the reward for the given parameters.
+        """
+        # assert isinstance(x, np.ndarray)
+        assert len(x) == self.dim
+        assert x.ndim == 1
+        assert np.all(x <= self.ub) and np.all(x >= self.lb)
+
+        # cur_specs (gain, ugbw, pm, power)
+        if self.cur_specs is not None:
+            gain = self.cur_specs[0]
+            gain_dB = 20 * np.log10(gain)
+            ugbw = self.cur_specs[1]
+            pm = self.cur_specs[2]
+            phase_margin_deg = pm
+            power = self.cur_specs[3]
+            # print("gain, ugbw, pm, power", gain, ugbw, pm, power)
+            # exit()
+        else:
+            print("self.cur_specs is None......................")
+
+        if self.last_change <= 10:
+            self.last_change = self.last_change + 1
+        else:
+            if self.reward_idx == 1 and gain_dB > 90:
+                self.reward_idx = 2
+                self.last_change = 0
+
+            elif self.reward_idx == 2 and ugbw > 2e7:
+                self.reward_idx = 3
+                self.last_change = 0
+
+            elif self.reward_idx == 3 and pm > 55:
+                self.reward_idx = 4
+                self.last_change = 0
+
+            elif self.reward_idx == 4 and power < 1.0:
+                self.reward_idx = 5
+                self.last_change = 0
+
+            elif self.reward_idx == 5 and gain_dB > 125:
+                self.reward_idx = 6
+                self.last_change = 0
+
+            elif self.reward_idx == 6 and ugbw > 1e8:
+                self.reward_idx = 7
+                self.last_change = 0
+                # pass
+
+        if self.last_params is None:
+            self.last_params = np.copy(x)
+
+        # [2,2]
+        __reference__ = [
+            "w_m12",  # 0
+            "w_m3",  # 1
+            "w_m45",  # 2
+            "w_m67",  # 3
+            "w_m89",  # 4
+            "w_m1011",  # 5
+            "vbp1",  # 6
+            "vbp2",  # 7
+            "vbn1",  # 8
+            "vbn2",  # 9
+            "cc",  # 10
+        ]
+        new_x = np.copy(x)
+
+        x[0] = int(round(x[0]))
+        x[1] = int(round(x[1]))
+        x[2] = int(round(x[2]))
+        x[3] = int(round(x[3]))
+        x[4] = int(round(x[4]))
+        x[5] = int(round(x[5]))
+        x[6] = int(round(x[6]))
+        # 15, 8, 1, 0, 7, 14
+        # 16, 9, 2, 17, 10, 3, 19, 12, 5, 20, 13, 6, 18, 11, 4
+        # 23, 22
+        # 0,7, 14
+        # 17, 10, 3 16, 9, 2, 19, 12, 5, 20, 13, 6, 18, 11, 4
+        # 17, 10, 3 16, 9, 2, 19, 12, 5, 20, 13, 6, 18, 11, 4
+        # 23, 22
+        if self.enable_block_selection:
+            # 1,1
+            if self.reward_idx == 1:
+                keeps = [5, 8, 1, 0, 7, 14]
+                for idx, val in enumerate(x):
+                    if idx not in keeps:
+                        new_x[idx] = self.last_params[idx]
+                    else:
+                        new_x[idx] = val
+            # 2,2
+            if self.reward_idx == 2:
+                keeps = [16, 9, 2, 17, 10, 3, 19, 12, 5, 20, 13, 6, 18, 11, 4]
+                for idx, val in enumerate(x):
+                    if idx not in keeps:
+                        new_x[idx] = self.last_params[idx]
+                    else:
+                        new_x[idx] = val
+            # 1,6
+            if self.reward_idx == 3:
+                keeps = [23, 22]
+                for idx, val in enumerate(x):
+                    if idx not in keeps:
+                        new_x[idx] = self.last_params[idx]
+                    else:
+                        new_x[idx] = val
+            # 1,3
+            if self.reward_idx == 4:
+                keeps = [0, 7, 14, 21]
+                for idx, val in enumerate(x):
+                    if idx not in keeps:
+                        new_x[idx] = self.last_params[idx]
+                    else:
+                        new_x[idx] = val
+            # 3,2
+            if self.reward_idx == 5:
+                keeps = [17, 10, 3, 16, 9, 2, 19, 12, 5, 20, 13, 6, 18, 11, 4]
+                for idx, val in enumerate(x):
+                    if idx not in keeps:
+                        new_x[idx] = self.last_params[idx]
+                    else:
+                        new_x[idx] = val
+            # 3,2
+            if self.reward_idx == 6:
+                keeps = [17, 10, 3, 16, 9, 2, 19, 12, 5, 20, 13, 6, 18, 11, 4]
+                for idx, val in enumerate(x):
+                    if idx not in keeps:
+                        new_x[idx] = self.last_params[idx]
+                    else:
+                        new_x[idx] = val
+            # 1,6
+            if self.reward_idx == 7:
+                keeps = [23, 22, 21]
+                for idx, val in enumerate(x):
+                    if idx not in keeps:
+                        new_x[idx] = self.last_params[idx]
+                    else:
+                        new_x[idx] = val
+        self.last_params = np.copy(new_x)
+
+        CIR_YAML = "spectre_simulator/spectre/specs_list_read/NMCF.yaml"
+        sim_env = OpampMeasMan(CIR_YAML)
+        sample = new_x
+        param_val = [OrderedDict(list(zip(self.params_id, sample)))]
+
+        cur_specs = OrderedDict(
+            sorted(sim_env.evaluate(param_val)[0][1].items(), key=lambda k: k[0])
+        )
+        dict1 = OrderedDict(list(cur_specs.items())[:-5])  # all the original
+        dict3 = OrderedDict(list(cur_specs.items())[-5:-4])  # region
+        dict2 = OrderedDict(list(cur_specs.items())[-4:])  # remaining
+
+        dict2_values = list(dict2.values())
+        flattened_dict2 = [item for sublist in dict2_values for item in sublist]
+        dict2_nparray = np.array(flattened_dict2)
+
+        dict3_values = list(dict3.values())
+        flattened_dict3 = [item for sublist in dict3_values for item in sublist]
+        dict3_nparray = np.array(flattened_dict3)
+
+        cur_specs = np.array(list(dict1.values()))[:-1]
+        dummy = cur_specs[0]
+        cur_specs[0] = cur_specs[1]
+        cur_specs[1] = dummy
+
+        self.cur_specs = np.copy(cur_specs)
+
+        # f = open("/path/to/optimizer/out1.txt",'a')
+        # print("cur_specs", cur_specs, file=f)
+        reward1 = self.reward(cur_specs, self.specs_ideal, self.specs_id)
+        # f = open("performance+deviceparams.log", "a")
+        for ordered_dict in param_val:
+            # formatted_items = [
+            #     f"{k}: {format(v, '.3g')}" for k, v in ordered_dict.items()
+            # ]
+            # param_value_str = ", ".join(formatted_items)
+            pass
+            # print(", ".join(formatted_items), file=f)
+
+        # f.close()
+
+        # print("Device parameters:", param_value_str, file=f)
+        # print("reward", format(-reward1, ".3g"), file=f)
+        # f.close()
+        logger.debug(
+            f"Reward: {reward1:.3g} for sample: {sample} with specs: {cur_specs}"
+        )
+        return reward1, {"cur_specs": cur_specs, "original_reward": self.ret_reward_0}
+
+
+if __name__ == "__main__":
+    enable_adaptive_reward = args.ra
+    enable_block_selection = args.ba
+
+    print("enable_adaptive_reward: ", enable_adaptive_reward)
+    print("enable_block_selection: ", enable_block_selection)
+    input("Press Enter to continue...")
+
+    dim = len(parameter_range)
+    f = Levy(dim, params_id, specs_id, specs_ideal, ub, lb, enable_adaptive_reward)
+
+    turbo1 = Turbo1(
+        f=f,  # Handle to objective function
+        lb=lb,  # Numpy array specifying lower bounds
+        ub=ub,  # Numpy array specifying upper bounds
+        n_init=200,  # Number of initial bounds from an Latin hypercube design
+        max_evals=1000,  # Maximum number of evaluations
+        batch_size=128,  # How large batch size TuRBO uses
+        verbose=True,  # Print information from each batch
+        use_ard=True,  # Set to true if you want to use ARD for the GP kernel
+        max_cholesky_size=2000,  # When we switch from Cholesky to Lanczos
+        n_training_steps=100,  # Number of steps of ADAM to learn the hypers
+        min_cuda=10.40,  # Run on the CPU for small datasets
+        device="cpu",  # "cpu" or "cuda"
+        dtype="float32",  # float64 or float32
+    )
+
+    turbo1.optimize()
+
+    X = turbo1.X  # Evaluated points
+    fX = turbo1.fX  # Observed values
+    ind_best = np.argmin(fX)
+    f_best, x_best = fX[ind_best], X[ind_best, :]
+
+    np.save("X.npy", X)
+    np.save("fX", fX)
+    # np.save("fSpec", turbo1.infoX)
+    with open("simulation.dat", "wb") as f:
+        pickle.dump(turbo1.infoX, f)
+
+    print("Optimization completed.")
+    print("Best value found:\n\tf(x) = %.3f\nObserved at:\n\tx = %s" % (f_best, x_best))
+
+    with open("result.log", "w") as f:
+        f.write(
+            "Best value found:\n\tf(x) = %.3f\nObserved at:\n\tx = %s"
+            % (f_best, x_best)
+        )
