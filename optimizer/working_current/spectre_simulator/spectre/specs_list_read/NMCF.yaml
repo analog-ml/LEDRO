@@ -1,0 +1,55 @@
+database_dir: "/home/pham/code/analog-ml/LEDRO/optimizer/working_current/checkpoint/db/fully_differential_folded_cascode_ngspice"
+
+measurement:
+  meas_params: {} # high level measurement params go here for post process
+  testbenches:
+    ac_dc:
+      netlist_template: "/home/pham/code/analog-ml/LEDRO/optimizer/working_current/spectre_simulator/spectre/netlist_templates/skywater130/NMCF.cir"
+      tb_module: "spectre_simulator.spectre.meas_script.NMCF_meas"
+      tb_class: "ACTB"
+      post_process_function: "process_ac" # a class method defined in meas manager
+      tb_params: {} # lower level params for tb evaluation goes here
+
+params:
+  MOSFET_0_8_M_BIASCM_PMOS: !!python/tuple [130, 100000, 1000] # min, max, num_points (however, num_points is ignored in BO)
+  MOSFET_8_2_M_gm1_PMOS: !!python/tuple [130, 100000, 1000]
+  MOSFET_10_1_M_gm2_PMOS: !!python/tuple [130, 100000, 1000]
+  MOSFET_11_1_M_gmf2_PMOS: !!python/tuple [130, 100000, 1000]
+  MOSFET_17_7_M_BIASCM_NMOS: !!python/tuple [130, 100000, 1000]
+  MOSFET_21_2_M_LOAD2_NMOS: !!python/tuple [130, 100000, 1000]
+  MOSFET_23_1_M_gm3_NMOS: !!python/tuple [130, 100000, 1000]
+  # ....
+  MOSFET_0_8_W_BIASCM_PMOS: !!python/tuple [130, 100000, 1000] # min, max, num_points (however, num_points is ignored in BO)
+  MOSFET_8_2_W_gm1_PMOS: !!python/tuple [130, 100000, 1000]
+  MOSFET_10_1_W_gm2_PMOS: !!python/tuple [130, 100000, 1000]
+  MOSFET_11_1_W_gmf2_PMOS: !!python/tuple [130, 100000, 1000]
+  MOSFET_17_7_W_BIASCM_NMOS: !!python/tuple [130, 100000, 1000]
+  MOSFET_21_2_W_LOAD2_NMOS: !!python/tuple [130, 100000, 1000]
+  MOSFET_23_1_W_gm3_NMOS: !!python/tuple [130, 100000, 1000]
+  # ....
+  MOSFET_0_8_L_BIASCM_PMOS: !!python/tuple [130, 100000, 1000] # min, max, num_points (however, num_points is ignored in BO)
+  MOSFET_8_2_L_gm1_PMOS: !!python/tuple [130, 100000, 1000]
+  MOSFET_10_1_L_gm2_PMOS: !!python/tuple [130, 100000, 1000]
+  MOSFET_11_1_L_gmf2_PMOS: !!python/tuple [130, 100000, 1000]
+  MOSFET_17_7_L_BIASCM_NMOS: !!python/tuple [130, 100000, 1000]
+  MOSFET_21_2_L_LOAD2_NMOS: !!python/tuple [130, 100000, 1000]
+  MOSFET_23_1_L_gm3_NMOS: !!python/tuple [130, 100000, 1000]
+  # ...
+  CURRENT_0_BIAS: !!python/tuple [!!float 0.0001, !!float 1.1, 20]
+  M_C0: !!python/tuple [1, 50, 20]
+  M_C1: !!python/tuple [1, 50, 20]
+
+spec_range:
+  gain: [!!float 1, null, 1]
+  funity: [!!float 3.0e+5, null, 1]
+  pm: [60.0, null, 1]
+
+normalize: !!python/tuple [!!float 1.0e+8,3000000,!!float 1e-3,60]
+
+target_spec:
+  gain: !!python/tuple [3162277]
+  funity: !!python/tuple [!!float 1.0e+8]
+  pm: !!python/tuple [70]
+  power: !!python/tuple [1e-3]
+
+
